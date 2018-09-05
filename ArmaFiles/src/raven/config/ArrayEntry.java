@@ -5,6 +5,13 @@ import java.io.IOException;
 import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
+/**
+ * A class representing an array entry inside a {@linkplain ConfigClass} or an array
+ * structure nested inside another array
+ * 
+ * @author Raven
+ *
+ */
 public class ArrayEntry extends ConfigClassEntry {
 
 	/**
@@ -21,6 +28,15 @@ public class ArrayEntry extends ConfigClassEntry {
 	protected boolean nested;
 
 
+	/**
+	 * Creates a new instance if this class
+	 * 
+	 * @param varName
+	 *            The variable name this array is being assigned to or
+	 *            <code>null</code> if this is a nested array
+	 * @param content
+	 *            The {@linkplain ArrayStruct} representing this array's content
+	 */
 	public ArrayEntry(String varName, ArrayStruct content) {
 		this.varName = varName;
 		this.content = content;
@@ -32,7 +48,20 @@ public class ArrayEntry extends ConfigClassEntry {
 		return ConfigClassEntry.ARRAY;
 	}
 
-
+	/**
+	 * Creates an {@linkplain ArrayEntry} from a rapified config file. This method
+	 * assumes that the given reader is right at the beginning of an array
+	 * specification
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param isNested
+	 *            Whether the array to be read is nested inside another array (i.e.
+	 *            does not have a variable name)
+	 * @return The created entry
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	protected static ArrayEntry fromRapified(ByteReader reader, boolean isNested)
 			throws IOException, RapificationException {
 		String varName = null;
@@ -50,6 +79,19 @@ public class ArrayEntry extends ConfigClassEntry {
 		return new ArrayEntry(varName, content);
 	}
 
+	/**
+	 * Creates a new {@linkplain ArrayEntry} from a text config file.This method
+	 * assumes that the given reader is right at the beginning of an array
+	 * specification
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param varName
+	 *            The variable name this array is being assigned to or
+	 *            <code>null</code> if this is a nested array
+	 * @return The created entry
+	 * @throws IOException
+	 */
 	protected static ArrayEntry fromText(TextReader reader, String varName) throws IOException {
 		reader.consumeWhithespace();
 

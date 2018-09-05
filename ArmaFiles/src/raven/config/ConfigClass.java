@@ -9,6 +9,12 @@ import java.util.List;
 import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
+/**
+ * A class representing an Arma-config-class
+ * 
+ * @author Raven
+ *
+ */
 public class ConfigClass {
 
 	/**
@@ -34,13 +40,40 @@ public class ConfigClass {
 	protected String name;
 
 
+	/**
+	 * Creates a new instance of this class
+	 * 
+	 * @param className
+	 *            The name of the represented config class or <code>null</code> if
+	 *            there is none
+	 * @param parentClass
+	 *            The name of the class the represented one inherits from or an
+	 *            empty String if there is none
+	 * @param entries
+	 *            Ann array of entries directly specified inside the represented
+	 *            config class
+	 */
 	public ConfigClass(String className, String parentClass, ConfigClassEntry[] entries) {
+		assert (parentClass != null);
+		assert (entries != null);
+
 		this.parentClass = parentClass;
 		this.name = className;
 		this.entries = entries;
 		this.entryCount = entries.length;
 	}
 
+	/**
+	 * Creates a {@linkplain ConfigClass} from a rapified file. This method assumes
+	 * the given reader hasn't consumed any data yet and validates the presence of
+	 * the initial {@link #RAP_IDENTIFIER} bytes.
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created class
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	public static ConfigClass fromRapifiedFile(ByteReader reader) throws IOException, RapificationException {
 		if (reader.readInt32() != RAP_IDENTIFIER) {
 			throw new RapificationException("The given input is not rapified!");
@@ -57,7 +90,18 @@ public class ConfigClass {
 		return fromRapified(null, reader);
 	}
 
-
+	/**
+	 * Creates a {@linkplain ConfigClass} from a rapified file. This method assumes
+	 * the given reader points directly at the start of a class-definition.
+	 * 
+	 * @param className
+	 *            The name of the class to be created
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created class
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	protected static ConfigClass fromRapified(String className, ByteReader reader)
 			throws IOException, RapificationException {
 		String parentClass = reader.readString();
@@ -129,10 +173,38 @@ public class ConfigClass {
 		return new ConfigClass(null, parentClass, entries);
 	}
 
+	/**
+	 * Creates a {@linkplain ConfigClass} from a text config file. This method
+	 * assumes that the given reader has not yet consumed anything from the input
+	 * stream
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created class
+	 * @throws IOException
+	 * @throws ConfigException
+	 */
 	public static ConfigClass fromTextFile(TextReader reader) throws IOException, ConfigException {
 		return fromText(reader, null, "");
 	}
 
+	/**
+	 * Creates a {@linkplain ConfigClass} from a text config file. This method
+	 * assumes that the given reader has not yet consumed anything from the input
+	 * stream
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param className
+	 *            The name of the class to be created or <code>null</code> if there
+	 *            is none
+	 * @param parentClass
+	 *            The name of the class the one to be created inherits from or an
+	 *            empty String if there is none
+	 * @return The created class
+	 * @throws IOException
+	 * @throws ConfigException
+	 */
 	protected static ConfigClass fromText(TextReader reader, String className, String parentClass)
 			throws IOException, ConfigException {
 		List<ConfigClassEntry> entries = new ArrayList<>();

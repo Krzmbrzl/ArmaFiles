@@ -5,6 +5,12 @@ import java.io.IOException;
 import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
+/**
+ * A class representing an subclass entry inside a {@linkplain ConfigClass}
+ * 
+ * @author Raven
+ *
+ */
 public class SubclassEntry extends ConfigClassEntry {
 
 	/**
@@ -20,11 +26,25 @@ public class SubclassEntry extends ConfigClassEntry {
 	 */
 	protected ConfigClass referencedClass;
 
+	/**
+	 * Constructs a new instance of this class
+	 * 
+	 * @param referencedClass
+	 *            The {@linkplain ConfigClass} to represent
+	 */
 	public SubclassEntry(ConfigClass referencedClass) {
 		this(referencedClass.getName(), -1);
 		this.referencedClass = referencedClass;
 	}
 
+	/**
+	 * Constructs a new instance of this class
+	 * 
+	 * @param className
+	 *            The name of the represented subclass
+	 * @param offsetToClassBody
+	 *            The offset to the represented subclass's body
+	 */
 	public SubclassEntry(String className, int offsetToClassBody) {
 		this.className = className;
 		this.offsetToBody = offsetToClassBody;
@@ -35,6 +55,17 @@ public class SubclassEntry extends ConfigClassEntry {
 		return ConfigClassEntry.SUBCLASS;
 	}
 
+	/**
+	 * Creates a new {@linkplain SubclassEntry} from a rapified config file. This
+	 * method assumes that the given reader points right at the start of a
+	 * subclass-definition.
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created entry
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	protected static SubclassEntry fromRapified(ByteReader reader) throws IOException, RapificationException {
 		String className = reader.readString();
 
@@ -47,6 +78,19 @@ public class SubclassEntry extends ConfigClassEntry {
 		return new SubclassEntry(className, offsetToBody);
 	}
 
+	/**
+	 * Creates a {@linkplain SubclassEntry} from a text config file. This method
+	 * assumes that the given reader points right at the beginning of the class
+	 * body's definition optionally prefixed by a parent-class definition
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param className
+	 *            The name of the represented subclass
+	 * @return The created entry
+	 * @throws IOException
+	 * @throws ConfigException
+	 */
 	protected static SubclassEntry fromText(TextReader reader, String className) throws IOException, ConfigException {
 		String parentClass = "";
 

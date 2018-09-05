@@ -5,6 +5,12 @@ import java.io.IOException;
 import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
+/**
+ * A class representing a value entry inside a {@linkplain ConfigClass}
+ * 
+ * @author Raven
+ *
+ */
 public class ValueEntry extends ConfigClassEntry {
 
 	/**
@@ -47,6 +53,15 @@ public class ValueEntry extends ConfigClassEntry {
 	protected boolean nested;
 
 
+	/**
+	 * Creates a new instance of this class representing a String value
+	 * 
+	 * @param varName
+	 *            The name of the variable this value is being assigned to or
+	 *            <code>null</code> if this is a nested value inside an array
+	 * @param content
+	 *            The content to be represented by this entry
+	 */
 	public ValueEntry(String varName, String content) {
 		this.varName = varName;
 		this.nested = varName == null;
@@ -54,6 +69,15 @@ public class ValueEntry extends ConfigClassEntry {
 		this.dataType = STRING;
 	}
 
+	/**
+	 * Creates a new instance of this class representing a float value
+	 * 
+	 * @param varName
+	 *            The name of the variable this value is being assigned to or
+	 *            <code>null</code> if this is a nested value inside an array
+	 * @param content
+	 *            The content to be represented by this entry
+	 */
 	public ValueEntry(String varName, float content) {
 		this.varName = varName;
 		this.nested = varName == null;
@@ -61,6 +85,15 @@ public class ValueEntry extends ConfigClassEntry {
 		this.dataType = FLOAT;
 	}
 
+	/**
+	 * Creates a new instance of this class representing a long value
+	 * 
+	 * @param varName
+	 *            The name of the variable this value is being assigned to or
+	 *            <code>null</code> if this is a nested value inside an array
+	 * @param content
+	 *            The content to be represented by this entry
+	 */
 	public ValueEntry(String varName, long content) {
 		this.varName = varName;
 		this.nested = varName == null;
@@ -73,6 +106,20 @@ public class ValueEntry extends ConfigClassEntry {
 		return ConfigClassEntry.ASSIGNMENT;
 	}
 
+	/**
+	 * Creates a {@linkplain ValueEntry} from a rapified config file. This method
+	 * assumes that the given reader points right at the beginning of a
+	 * value-entry-definition,
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param isNested
+	 *            Indicating whether the entry to be created is nested inside an
+	 *            array (has no variable name)
+	 * @return The created array
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	protected static ValueEntry fromRapified(ByteReader reader, boolean isNested)
 			throws IOException, RapificationException {
 		byte dataType = reader.readByte();
@@ -99,6 +146,19 @@ public class ValueEntry extends ConfigClassEntry {
 		}
 	}
 
+	/**
+	 * Creates a {@linkplain ValueEntry} from a text config file. This method
+	 * assumes that the given reader points right at the beginning of a
+	 * value-entry-definition.
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @param varName
+	 *            The variable name the represented value is being assigned to or
+	 *            <code>null</code> if there's none
+	 * @return The created entry
+	 * @throws IOException
+	 */
 	protected static ValueEntry fromText(TextReader reader, String varName) throws IOException {
 		int c = reader.peek();
 

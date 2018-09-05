@@ -8,6 +8,13 @@ import java.util.List;
 import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
+/**
+ * A class representing the array-structure and therefore the actual
+ * array-content
+ * 
+ * @author Raven
+ *
+ */
 public class ArrayStruct {
 
 	/**
@@ -25,12 +32,28 @@ public class ArrayStruct {
 	protected int length;
 
 
-
+	/**
+	 * Creates a new instance of this class
+	 * 
+	 * @param content
+	 *            The content that should be represented by this struct
+	 */
 	public ArrayStruct(ConfigClassEntry[] content) {
 		this.content = content;
 		this.length = content.length;
 	}
 
+	/**
+	 * Creates an {@linkplain ArrayStruct} from a rapified config file. This method
+	 * assumes that the given reader is right at the beginning of an array-struct
+	 * specification
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created struct
+	 * @throws IOException
+	 * @throws RapificationException
+	 */
 	protected static ArrayStruct fromRapified(ByteReader reader) throws IOException, RapificationException {
 		int length = reader.readCompressedInt();
 
@@ -61,6 +84,16 @@ public class ArrayStruct {
 		return new ArrayStruct(content);
 	}
 
+	/**
+	 * Creates an {@linkplain ArrayStruct} from a text config file. This method
+	 * assumes that the given reader is right at the beginning of an array-struct
+	 * specification
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created struct
+	 * @throws IOException
+	 */
 	protected static ArrayStruct fromText(TextReader reader) throws IOException {
 		reader.expect('{');
 		reader.consumeWhithespace();
@@ -112,15 +145,15 @@ public class ArrayStruct {
 	public String toString() {
 		return "ArrayStruct - " + length() + " entries";
 	}
-	
+
 	@Override
 	public boolean equals(Object o) {
-		if(!(o instanceof ArrayStruct)) {
+		if (!(o instanceof ArrayStruct)) {
 			return false;
 		}
-		
+
 		ArrayStruct other = (ArrayStruct) o;
-		
+
 		return this.length == other.length && Arrays.deepEquals(this.content, other.content);
 	}
 

@@ -4,6 +4,12 @@ import java.io.IOException;
 
 import raven.misc.TextReader;
 
+/**
+ * A general representation of an entry inside a {@linkplain ConfigClass}
+ * 
+ * @author Raven
+ *
+ */
 public abstract class ConfigClassEntry {
 
 	/**
@@ -37,6 +43,18 @@ public abstract class ConfigClassEntry {
 		return "ConfigClassEntry - type: " + getType();
 	}
 
+	/**
+	 * Creates an arbitrary {@linkplain ConfigClassEntry} from a text config file.
+	 * It will determine the sub-type to be created on its own. This method assumes
+	 * that the reader points directly at an entry specification. Note that this
+	 * method may not be used for nested entries as occurring inside arrays.
+	 * 
+	 * @param reader
+	 *            The reader to use as a data source
+	 * @return The created entry
+	 * @throws IOException
+	 * @throws ConfigException
+	 */
 	protected static ConfigClassEntry fromText(TextReader reader) throws IOException, ConfigException {
 		reader.consumeWhithespace();
 
@@ -68,7 +86,7 @@ public abstract class ConfigClassEntry {
 			if (!id.equals("class")) {
 				throw new ConfigException("Expected class definition!");
 			}
-			
+
 			String name = reader.readWord();
 			reader.consumeWhithespace();
 
