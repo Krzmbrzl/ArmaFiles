@@ -1,0 +1,127 @@
+package raven.config;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import raven.misc.ByteReader;
+import raven.misc.TextReader;
+
+public class ArrayStruct {
+
+	/**
+	 * The subtype-identifier indicating a nested array
+	 */
+	public static final byte NESTED_ARRAY = 3;
+
+	/**
+	 * The content of this struct
+	 */
+	protected ConfigClassEntry[] content;
+	/**
+	 * The amount of elements in this struct
+	 */
+	protected int length;
+
+
+
+	public ArrayStruct(ConfigClassEntry[] content) {
+		this.content = content;
+		this.length = content.length;
+	}
+
+	protected static ArrayStruct fromRapified(ByteReader reader) throws IOException, RapificationException {
+		int length = reader.readCompressedInt();
+
+		if (length < 0) {
+			throw new RapificationException("Negative array length!");
+		}
+
+		ConfigClassEntry[] content = new ConfigClassEntry[length];
+
+		for (int i = 0; i < length; i++) {
+			byte type = reader.readByte();
+
+			switch (type) {
+			case ValueEntry.STRING:
+			case ValueEntry.FLOAT:
+			case ValueEntry.LONG:
+				reader.unread(type);
+				content[i] = ValueEntry.fromRapified(reader, true);
+				break;
+			case NESTED_ARRAY:
+				content[i] = ArrayEntry.fromRapified(reader, true);
+				break;
+			default:
+				throw new RapificationException("Unknown or unexpected data type in array struct: " + type);
+			}
+		}
+
+		return new ArrayStruct(content);
+	}
+
+	protected static ArrayStruct fromText(TextReader reader) throws IOException {
+		reader.expect('{');
+		reader.consumeWhithespace();
+
+		List<ConfigClassEntry> content = new ArrayList<>();
+
+		boolean proceed = true;
+
+		while (proceed) {
+			switch (reader.peek()) {
+			case '{':
+				// nested ArrayEntry
+				content.add(ArrayEntry.fromText(reader, null));
+				break;
+			case ',':
+				// consume comma and all following WS
+				reader.read();
+				reader.consumeWhithespace();
+				break;
+			case '}':
+				// end of array reached
+				reader.read();
+				proceed = false;
+				break;
+			default:
+				// has to be a nested ValueEntry
+				content.add(ValueEntry.fromText(reader, null));
+			}
+		}
+
+		return new ArrayStruct(content.toArray(new ConfigClassEntry[content.size()]));
+	}
+
+	/**
+	 * Gets the length of the represented array-body
+	 */
+	public int length() {
+		return length;
+	}
+
+	/**
+	 * Gets the actual content of the represented array-body
+	 */
+	public ConfigClassEntry[] getContent() {
+		return Arrays.copyOf(content, content.length);
+	}
+
+	@Override
+	public String toString() {
+		return "ArrayStruct - " + length() + " entries";
+	}
+	
+	@Override
+	public boolean equals(Object o) {
+		if(!(o instanceof ArrayStruct)) {
+			return false;
+		}
+		
+		ArrayStruct other = (ArrayStruct) o;
+		
+		return this.length == other.length && Arrays.deepEquals(this.content, other.content);
+	}
+
+}
