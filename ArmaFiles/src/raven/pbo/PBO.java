@@ -163,10 +163,21 @@ public class PBO {
 		return headerExtension == null ? null : Arrays.copyOf(headerExtension, headerExtension.length);
 	}
 
-	public static void main(String[] args) throws IOException, InterruptedException {
-		PBO pbo = new PBO(new File("/home/robert/Downloads/@cba/addons/" + "cba_accessory.pbo"));
+	/**
+	 * Tries to find the {@linkplain PBOEntry} with the given name
+	 * 
+	 * @param name
+	 *            The name to search for
+	 * @return The respective entry or <code>null</code> if none could be found
+	 */
+	public PBOEntry getEntry(String name) {
+		for (PBOEntry current : entries) {
+			if (current.getFileName().equals(name)) {
+				return current;
+			}
+		}
 
-		System.out.print(Arrays.deepToString(pbo.getHeaderExtension()));
+		return null;
 	}
 
 }

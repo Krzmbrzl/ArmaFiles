@@ -109,13 +109,13 @@ public class ByteReader implements Closeable {
 	 * @throws IOException
 	 */
 	public int readInt32() throws IOException {
-		int[] bytes = new int[4];
+		byte[] bytes = new byte[4];
 
 		for (int i = 0; i < 4; i++) {
-			bytes[i] = read();
+			bytes[i] = (byte) read();
 		}
 
-		return ((bytes[3] << 24) + (bytes[2] << 16) + (bytes[1] << 8) + (bytes[0] << 0));
+		return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).getInt();
 	}
 
 	public float readFloat() throws IOException {
@@ -160,6 +160,19 @@ public class ByteReader implements Closeable {
 	 */
 	public int getPosition() {
 		return readBytes;
+	}
+
+	/**
+	 * Peeks at the next byte in the stream
+	 * 
+	 * @return The byte that will be returned by the next call to {@link #read()}
+	 * @throws IOException
+	 */
+	public int peek() throws IOException {
+		int c = read();
+		unread(c);
+
+		return c;
 	}
 
 	@Override

@@ -38,6 +38,17 @@ public class SubclassEntry extends ConfigClassEntry {
 	}
 
 	/**
+	 * Constructs a new instance of this class. This constructor must only be used
+	 * if the represented class is an extern class
+	 * 
+	 * @param className
+	 *            The name of the extern class
+	 */
+	public SubclassEntry(String className) {
+		this(className, -1);
+	}
+
+	/**
 	 * Constructs a new instance of this class
 	 * 
 	 * @param className
@@ -121,9 +132,10 @@ public class SubclassEntry extends ConfigClassEntry {
 	}
 
 	/**
-	 * Gets the {@linkplain ConfigClass} referenced by this entry.
+	 * Gets the {@linkplain ConfigClass} referenced by this entry or
+	 * <code>null</code> if this is an extern class.
 	 */
-	public ConfigClass getReferncedClass() {
+	public ConfigClass getReferencedClass() {
 		return referencedClass;
 	}
 
@@ -147,6 +159,12 @@ public class SubclassEntry extends ConfigClassEntry {
 	 *             {@link #getOffsetToClassBody()}
 	 */
 	public void processClass(ByteReader reader) throws IOException, RapificationException {
+		if (offsetToBody < 0) {
+			// negative index indicates that this entry has been constructed with a class
+			// given -> no need to do processing then
+			return;
+		}
+
 		if (reader.getPosition() > getOffsetToClassBody()) {
 			throw new IllegalArgumentException("The provided reader has advanced over the necessary content!");
 		}
@@ -159,9 +177,17 @@ public class SubclassEntry extends ConfigClassEntry {
 		referencedClass = ConfigClass.fromRapified(getClassName(), reader);
 	}
 
+	/**
+	 * Checks if the represented class is an extern class. That means
+	 * {@link #getReferencedClass()} will return <code>null</code>
+	 */
+	public boolean isExtern() {
+		return referencedClass == null;
+	}
+
 	@Override
 	public String toString() {
-		return "SubclassEntry: \"" + getClassName() + "\"";
+		return "SubclassEntry: " + (isExtern() ? "extern " : "") + "\"" + getClassName() + "\"";
 	}
 
 	@Override
@@ -176,6 +202,15 @@ public class SubclassEntry extends ConfigClassEntry {
 				&& (this.className == null ? other.className == null : this.className.equals(other.className))
 				&& (this.referencedClass == null ? other.referencedClass == null
 						: this.referencedClass.equals(other.referencedClass));
+	}
+
+	@Override
+	public String toText() {
+		if (isExtern()) {
+			return "class " + getClassName() + ";";
+		} else {
+			return referencedClass.toText();
+		}
 	}
 
 }

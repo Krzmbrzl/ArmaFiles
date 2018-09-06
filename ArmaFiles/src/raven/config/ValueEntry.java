@@ -11,7 +11,7 @@ import raven.misc.TextReader;
  * @author Raven
  *
  */
-public class ValueEntry extends ConfigClassEntry {
+public class ValueEntry extends FieldEntry {
 
 	/**
 	 * Indicator for a String-type
@@ -31,10 +31,6 @@ public class ValueEntry extends ConfigClassEntry {
 	 * The data type of this value
 	 */
 	protected byte dataType;
-	/**
-	 * The name of the variable assigned a value by this entry (if any)
-	 */
-	protected String varName;
 	/**
 	 * The String value of the value if it is of type {@link #STRING}
 	 */
@@ -63,7 +59,7 @@ public class ValueEntry extends ConfigClassEntry {
 	 *            The content to be represented by this entry
 	 */
 	public ValueEntry(String varName, String content) {
-		this.varName = varName;
+		super(varName);
 		this.nested = varName == null;
 		this.string = content;
 		this.dataType = STRING;
@@ -79,7 +75,7 @@ public class ValueEntry extends ConfigClassEntry {
 	 *            The content to be represented by this entry
 	 */
 	public ValueEntry(String varName, float content) {
-		this.varName = varName;
+		super(varName);
 		this.nested = varName == null;
 		this.fl = content;
 		this.dataType = FLOAT;
@@ -95,7 +91,7 @@ public class ValueEntry extends ConfigClassEntry {
 	 *            The content to be represented by this entry
 	 */
 	public ValueEntry(String varName, long content) {
-		this.varName = varName;
+		super(varName);
 		this.nested = varName == null;
 		this.lo = content;
 		this.dataType = LONG;
@@ -166,7 +162,7 @@ public class ValueEntry extends ConfigClassEntry {
 			// String
 			return new ValueEntry(varName, reader.readString());
 		}
-		if (Character.isDigit(c)) {
+		if (Character.isDigit(c) || c == '-' || c == '+') {
 			float num = reader.readNumber();
 
 			if (num == (long) num) {
@@ -236,14 +232,6 @@ public class ValueEntry extends ConfigClassEntry {
 		return nested;
 	}
 
-	/**
-	 * Gets the variable name of the variable this entry is being assigned to. May
-	 * be <code>null</code> if {@link #isNested()} returns <code>true</code>
-	 */
-	public String getVarName() {
-		return varName;
-	}
-
 	@Override
 	public String toString() {
 		String str = "ValueEntry" + (isNested() ? "" : ": \"" + getVarName() + "\"") + " - ";
@@ -256,7 +244,7 @@ public class ValueEntry extends ConfigClassEntry {
 			str += "Float: " + getFloat();
 			break;
 		case LONG:
-			str += "LONG " + getFloat();
+			str += "LONG " + getLong();
 			break;
 		default:
 			str += "type=" + getType();
@@ -276,6 +264,20 @@ public class ValueEntry extends ConfigClassEntry {
 		return this.nested && (this.varName == null ? other.varName == null : this.varName.equals(other.varName))
 				&& (this.string == null ? other.string == null : this.string.equals(other.string))
 				&& this.fl == other.fl && this.lo == other.lo;
+	}
+
+	@Override
+	public String getFieldValueString() {
+		switch (dataType) {
+		case STRING:
+			return "\"" + string + "\"";
+		case FLOAT:
+			return String.valueOf(fl);
+		case LONG:
+			return String.valueOf(lo);
+		default:
+			throw new IllegalStateException("Unknown datattype " + dataType);
+		}
 	}
 
 }

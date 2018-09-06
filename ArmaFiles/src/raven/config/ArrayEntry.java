@@ -6,18 +6,13 @@ import raven.misc.ByteReader;
 import raven.misc.TextReader;
 
 /**
- * A class representing an array entry inside a {@linkplain ConfigClass} or an array
- * structure nested inside another array
+ * A class representing an array entry inside a {@linkplain ConfigClass} or an
+ * array structure nested inside another array
  * 
  * @author Raven
  *
  */
-public class ArrayEntry extends ConfigClassEntry {
-
-	/**
-	 * The name of the variable the array is being assigned to
-	 */
-	protected String varName;
+public class ArrayEntry extends FieldEntry {
 	/**
 	 * The {@linkplain ArrayStruct} containing the array's content
 	 */
@@ -38,7 +33,7 @@ public class ArrayEntry extends ConfigClassEntry {
 	 *            The {@linkplain ArrayStruct} representing this array's content
 	 */
 	public ArrayEntry(String varName, ArrayStruct content) {
-		this.varName = varName;
+		super(varName);
 		this.content = content;
 		this.nested = varName == null;
 	}
@@ -107,14 +102,6 @@ public class ArrayEntry extends ConfigClassEntry {
 	}
 
 	/**
-	 * Gets the variable name of the variable this entry is being assigned to. May
-	 * be <code>null</code> for nested array-entries
-	 */
-	public String getVarName() {
-		return varName;
-	}
-
-	/**
 	 * Gets the length of the array that is being represented by this entry
 	 */
 	public int length() {
@@ -143,6 +130,11 @@ public class ArrayEntry extends ConfigClassEntry {
 
 		return (this.varName == null ? other.varName == null : this.varName.equals(other.varName))
 				&& this.nested == other.nested && this.content.equals(other.content);
+	}
+
+	@Override
+	public String getFieldValueString() {
+		return content.toText();
 	}
 
 }

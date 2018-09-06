@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import raven.misc.ByteReader;
+import raven.misc.ITextifyable;
 import raven.misc.TextReader;
 
 /**
@@ -15,7 +16,7 @@ import raven.misc.TextReader;
  * @author Raven
  *
  */
-public class ConfigClass {
+public class ConfigClass implements ITextifyable {
 
 	/**
 	 * The identifying int (four byte) at the beginning of each rapified file
@@ -50,7 +51,7 @@ public class ConfigClass {
 	 *            The name of the class the represented one inherits from or an
 	 *            empty String if there is none
 	 * @param entries
-	 *            Ann array of entries directly specified inside the represented
+	 *            An array of entries directly specified inside the represented
 	 *            config class
 	 */
 	public ConfigClass(String className, String parentClass, ConfigClassEntry[] entries) {
@@ -128,9 +129,10 @@ public class ConfigClass {
 				entries[i] = ArrayEntry.fromRapified(reader, false);
 				break;
 			case ConfigClassEntry.EXTERN:
-			case ConfigClassEntry.DELETE:
-				// ignore
+				entries[i] = new SubclassEntry(new ConfigClass(reader.readString(), "", new ConfigClassEntry[0]));
 				break;
+			case ConfigClassEntry.DELETE:
+				throw new RapificationException("Delete entrries are not supported!");
 			default:
 				throw new RapificationException("Unknown entry type: " + entryType);
 			}
@@ -155,22 +157,13 @@ public class ConfigClass {
 			}
 		});
 
-		boolean foundSubclass = false;
-
 		for (ConfigClassEntry entry : entries) {
 			if (entry instanceof SubclassEntry) {
-				foundSubclass = true;
-
 				((SubclassEntry) entry).processClass(reader);
-			} else {
-				if (foundSubclass) {
-					throw new RapificationException(
-							"Found Subclass- and non-Subclass-Entries contained in the same class -> Bad format");
-				}
 			}
 		}
 
-		return new ConfigClass(null, parentClass, entries);
+		return new ConfigClass(className, parentClass, entries);
 	}
 
 	/**
@@ -249,6 +242,13 @@ public class ConfigClass {
 	}
 
 	/**
+	 * Gets this class's parent class or an empty String if there is none
+	 */
+	public String getParentClass() {
+		return parentClass;
+	}
+
+	/**
 	 * Gets the amount of entries in this class
 	 */
 	public int getEntryCount() {
@@ -260,6 +260,17 @@ public class ConfigClass {
 	 */
 	public ConfigClassEntry[] getEntries() {
 		return Arrays.copyOf(entries, entries.length);
+	}
+
+	/**
+	 * Gets the {@linkplain ConfigClassEntry} with the specified index
+	 * 
+	 * @param index
+	 *            The index of the entry to retrieve
+	 * @return The respective entry
+	 */
+	public ConfigClassEntry getEntry(int index) {
+		return entries[index];
 	}
 
 	@Override
@@ -279,6 +290,162 @@ public class ConfigClass {
 				&& this.entryCount == other.entryCount
 				&& (this.name == null ? other.name == null : this.name.equals(other.name))
 				&& Arrays.deepEquals(this.entries, other.entries);
+	}
+
+	/**
+	 * Tries to find an assignment field of the given name in this class. If the
+	 * recursive flag is being set, it will pass the request recursively to all its
+	 * subclasses.
+	 * 
+	 * @param name
+	 *            The name of the field to search for
+	 * @param recursive
+	 *            Whether to do a recursive search for the field
+	 * @return The respective field or <code>null</code> if none could be found
+	 */
+	public FieldEntry getField(String name, boolean recursive) {
+		for (ConfigClassEntry current : getEntries()) {
+			if (current instanceof ValueEntry) {
+				ValueEntry valEntry = (ValueEntry) current;
+
+				if (valEntry.hasVarName() && valEntry.getVarName().equals(name)) {
+					return valEntry;
+				}
+			} else {
+				if (current instanceof ArrayEntry) {
+					ArrayEntry arrEntry = (ArrayEntry) current;
+
+					if (arrEntry.hasVarName() && arrEntry.getVarName().equals(name)) {
+						return arrEntry;
+					}
+				} else {
+					if (recursive && current instanceof SubclassEntry && !((SubclassEntry) current).isExtern()) {
+						FieldEntry entry = ((SubclassEntry) current).getReferencedClass().getField(name, recursive);
+
+						if (entry != null) {
+							return entry;
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Tries to find a subclass with the given name. If the recursive flag is set,
+	 * the search is passed consecutively to all subclasses.
+	 * 
+	 * @param name
+	 *            The name of the class to search for
+	 * @param recursive
+	 *            Whether to do a recursive search for the class
+	 * @return The respective {@linkplain ConfigClass} or <code>null</code> if none
+	 *         could be found
+	 */
+	public ConfigClass getSubclass(String name, boolean recursive) {
+		for (ConfigClassEntry current : getEntries()) {
+			if (current instanceof SubclassEntry && !((SubclassEntry) current).isExtern()) {
+				if (((SubclassEntry) current).getClassName().equals(name)) {
+					return ((SubclassEntry) current).getReferencedClass();
+				} else {
+					if (recursive) {
+						ConfigClass result = ((SubclassEntry) current).getReferencedClass().getSubclass(name,
+								recursive);
+
+						if (result != null) {
+							return result;
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Checks how many fields are being directly defined inside this config class
+	 */
+	public int getFieldCount() {
+		int amount = 0;
+
+		for (ConfigClassEntry current : entries) {
+			if (current instanceof FieldEntry) {
+				amount++;
+			}
+		}
+
+		return amount;
+	}
+
+	/**
+	 * Checks how many subclasses are being directly defined inside this config
+	 * class
+	 */
+	public int getSubclassCount() {
+		return getEntryCount() - getFieldCount();
+	}
+
+	/**
+	 * Gets all {@linkplain FieldEntry}s directly defined in this config class
+	 */
+	public FieldEntry[] getFields() {
+		FieldEntry[] entries = new FieldEntry[getFieldCount()];
+
+		int counter = 0;
+
+		for (ConfigClassEntry current : this.entries) {
+			if (current instanceof FieldEntry) {
+				entries[counter] = (FieldEntry) current;
+				counter++;
+			}
+		}
+
+		return entries;
+	}
+
+	/**
+	 * Gets all {@linkplain SubclassEntry}s directly defined in this config class
+	 */
+	public SubclassEntry[] getSubclasses() {
+		SubclassEntry[] entries = new SubclassEntry[getSubclassCount()];
+
+		int counter = 0;
+
+		for (ConfigClassEntry current : this.entries) {
+			if (current instanceof SubclassEntry) {
+				entries[counter] = (SubclassEntry) current;
+				counter++;
+			}
+		}
+
+		return entries;
+	}
+
+	@Override
+	public String toText() {
+		StringBuilder builder = new StringBuilder();
+
+		builder.append("class " + getName());
+		if (!getParentClass().isEmpty()) {
+			builder.append(" : " + getParentClass());
+		}
+
+		builder.append(" {\n\t");
+
+		for (ConfigClassEntry currentEntry : entries) {
+			builder.append("\t" + currentEntry.toText().replace("\n", "\n\t"));
+
+			if (!(currentEntry instanceof SubclassEntry)) {
+				builder.append(";");
+			}
+		}
+
+		builder.append("};");
+
+		return builder.toString();
 	}
 
 }

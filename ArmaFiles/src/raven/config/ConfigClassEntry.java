@@ -2,6 +2,7 @@ package raven.config;
 
 import java.io.IOException;
 
+import raven.misc.ITextifyable;
 import raven.misc.TextReader;
 
 /**
@@ -10,7 +11,7 @@ import raven.misc.TextReader;
  * @author Raven
  *
  */
-public abstract class ConfigClassEntry {
+public abstract class ConfigClassEntry implements ITextifyable {
 
 	/**
 	 * The entry type indicating a nested sub-class
@@ -89,8 +90,12 @@ public abstract class ConfigClassEntry {
 
 			String name = reader.readWord();
 			reader.consumeWhithespace();
-
+			
+			if(reader.peek() == ';') {
+				return new SubclassEntry(new ConfigClass(name, "", new ConfigClassEntry[0]));
+			} else {
 			return SubclassEntry.fromText(reader, name);
+			}
 		}
 	}
 

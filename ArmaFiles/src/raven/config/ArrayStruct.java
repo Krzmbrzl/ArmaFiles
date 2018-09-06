@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import raven.misc.ByteReader;
+import raven.misc.ITextifyable;
 import raven.misc.TextReader;
 
 /**
@@ -15,7 +16,7 @@ import raven.misc.TextReader;
  * @author Raven
  *
  */
-public class ArrayStruct {
+public class ArrayStruct implements ITextifyable {
 
 	/**
 	 * The subtype-identifier indicating a nested array
@@ -155,6 +156,24 @@ public class ArrayStruct {
 		ArrayStruct other = (ArrayStruct) o;
 
 		return this.length == other.length && Arrays.deepEquals(this.content, other.content);
+	}
+
+	@Override
+	public String toText() {
+		StringBuilder builder = new StringBuilder();
+
+		builder.append("{");
+
+		for (int i = 0; i < content.length; i++) {
+			if (i > 0) {
+				builder.append(" ,");
+			}
+			builder.append(content[i].toText());
+		}
+		
+		builder.append("}");
+
+		return builder.toString();
 	}
 
 }

@@ -99,10 +99,10 @@ public class TextReader implements Closeable {
 
 		int c;
 
-		while ((c = read()) != -1 && (Character.isAlphabetic(c) || c == '_')) {
+		while ((c = read()) != -1 && (Character.isAlphabetic(c) || c == '_' || Character.isDigit(c))) {
 			builder.append((char) c);
 		}
-		
+
 		unread(c);
 
 		return c == -1 && builder.length() == 0 ? null : builder.toString();
@@ -168,10 +168,10 @@ public class TextReader implements Closeable {
 
 		int c;
 
-		while ((c = read()) != -1 && (Character.isDigit(c) || c == '.')) {
+		while ((c = read()) != -1 && (Character.isDigit(c) || c == '.' || c == '-' || c == '+')) {
 			builder.append((char) c);
 		}
-		
+
 		unread(c);
 
 		return Float.parseFloat(builder.toString());
