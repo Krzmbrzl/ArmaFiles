@@ -35,7 +35,7 @@ for (File currentFolder : modFolders) {
 		continue;
 	}
 
-  File addonFolder = new File(currentFolder, "addons");
+	File addonFolder = new File(currentFolder, "addons");
 
 	for (File currentAddon : addonFolder.listFiles()) {
 		if (currentAddon.getName().toLowerCase().endsWith(".pbo")) {
