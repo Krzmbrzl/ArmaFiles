@@ -69,6 +69,9 @@ public class PBO {
 		if (!file.isFile()) {
 			throw new IllegalArgumentException("The given file is not actually a file!");
 		}
+		if (!file.getName().toLowerCase().endsWith(".pbo")) {
+			throw new IllegalArgumentException("The given file does not have the .pbo extentsion!");
+		}
 	}
 
 	/**
