@@ -75,7 +75,7 @@ public class ArrayStruct implements ITextifyable {
 				content[i] = ValueEntry.fromRapified(reader, true);
 				break;
 			case NESTED_ARRAY:
-				content[i] = ArrayEntry.fromRapified(reader, true);
+				content[i] = ArrayEntry.fromRapified(reader, true, false);
 				break;
 			default:
 				throw new RapificationException("Unknown or unexpected data type in array struct: " + type);
@@ -107,7 +107,7 @@ public class ArrayStruct implements ITextifyable {
 			switch (reader.peek()) {
 			case '{':
 				// nested ArrayEntry
-				content.add(ArrayEntry.fromText(reader, null));
+				content.add(ArrayEntry.fromText(reader, null, false));
 				break;
 			case ',':
 				// consume comma and all following WS

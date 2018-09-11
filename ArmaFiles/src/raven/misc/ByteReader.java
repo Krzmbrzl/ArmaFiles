@@ -180,4 +180,17 @@ public class ByteReader implements Closeable {
 		this.source.close();
 	}
 
+	/**
+	 * Skips the given amount of bytes
+	 * 
+	 * @param amount
+	 *            The amount of bytes to skip
+	 * @throws IOException
+	 */
+	public void skip(int amount) throws IOException {
+		for (int i = 0; i < amount; i++) {
+			read();
+		}
+	}
+
 }

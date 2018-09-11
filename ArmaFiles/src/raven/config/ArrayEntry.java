@@ -21,6 +21,11 @@ public class ArrayEntry extends FieldEntry {
 	 * Indicating whether this is a nested array-entry
 	 */
 	protected boolean nested;
+	/**
+	 * Indicates whether this array appends to an existing one (it was declared
+	 * using the += operator)
+	 */
+	protected boolean appends;
 
 
 	/**
@@ -32,10 +37,11 @@ public class ArrayEntry extends FieldEntry {
 	 * @param content
 	 *            The {@linkplain ArrayStruct} representing this array's content
 	 */
-	public ArrayEntry(String varName, ArrayStruct content) {
+	public ArrayEntry(String varName, ArrayStruct content, boolean appends) {
 		super(varName);
 		this.content = content;
 		this.nested = varName == null;
+		this.appends = appends;
 	}
 
 	@Override
@@ -52,12 +58,13 @@ public class ArrayEntry extends FieldEntry {
 	 *            The reader to use as a data source
 	 * @param isNested
 	 *            Whether the array to be read is nested inside another array (i.e.
-	 *            does not have a variable name)
+	 *            does not have a variable name) * @param plusEqual Indicates
+	 *            whether this array has been declared via the += operator
 	 * @return The created entry
 	 * @throws IOException
 	 * @throws RapificationException
 	 */
-	protected static ArrayEntry fromRapified(ByteReader reader, boolean isNested)
+	protected static ArrayEntry fromRapified(ByteReader reader, boolean isNested, boolean plusEqual)
 			throws IOException, RapificationException {
 		String varName = null;
 
@@ -71,7 +78,7 @@ public class ArrayEntry extends FieldEntry {
 
 		ArrayStruct content = ArrayStruct.fromRapified(reader);
 
-		return new ArrayEntry(varName, content);
+		return new ArrayEntry(varName, content, plusEqual);
 	}
 
 	/**
@@ -84,13 +91,15 @@ public class ArrayEntry extends FieldEntry {
 	 * @param varName
 	 *            The variable name this array is being assigned to or
 	 *            <code>null</code> if this is a nested array
+	 * @param plusEqual
+	 *            Indicates whether this array has been declared via the += operator
 	 * @return The created entry
 	 * @throws IOException
 	 */
-	protected static ArrayEntry fromText(TextReader reader, String varName) throws IOException {
+	protected static ArrayEntry fromText(TextReader reader, String varName, boolean plusEqual) throws IOException {
 		reader.consumeWhithespace();
 
-		return new ArrayEntry(varName, ArrayStruct.fromText(reader));
+		return new ArrayEntry(varName, ArrayStruct.fromText(reader), plusEqual);
 	}
 
 	/**
@@ -135,6 +144,14 @@ public class ArrayEntry extends FieldEntry {
 	@Override
 	public String getFieldValueString() {
 		return content.toText();
+	}
+
+	/**
+	 * Indicates whether this array appends to an existing one (it was declared
+	 * using the += operator)
+	 */
+	public boolean isAppending() {
+		return appends;
 	}
 
 }

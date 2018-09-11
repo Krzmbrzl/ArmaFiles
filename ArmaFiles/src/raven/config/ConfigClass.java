@@ -117,6 +117,7 @@ public class ConfigClass implements ITextifyable {
 
 		for (int i = 0; i < entryCount; i++) {
 			byte entryType = reader.readByte();
+			boolean plusEqual = false;
 
 			switch (entryType) {
 			case ConfigClassEntry.SUBCLASS:
@@ -125,8 +126,12 @@ public class ConfigClass implements ITextifyable {
 			case ConfigClassEntry.ASSIGNMENT:
 				entries[i] = ValueEntry.fromRapified(reader, false);
 				break;
+			case ConfigClassEntry.PLUSEQUAL_ARRAY:
+				// skip the next four bytes
+				reader.skip(4);
+				plusEqual = true;
 			case ConfigClassEntry.ARRAY:
-				entries[i] = ArrayEntry.fromRapified(reader, false);
+				entries[i] = ArrayEntry.fromRapified(reader, false, plusEqual);
 				break;
 			case ConfigClassEntry.EXTERN:
 				entries[i] = new SubclassEntry(new ConfigClass(reader.readString(), "", new ConfigClassEntry[0]));
@@ -447,5 +452,4 @@ public class ConfigClass implements ITextifyable {
 
 		return builder.toString();
 	}
-
 }

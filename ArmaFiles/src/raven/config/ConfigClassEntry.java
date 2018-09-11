@@ -33,6 +33,11 @@ public abstract class ConfigClassEntry implements ITextifyable {
 	 * The entry type indicating a delete-statement
 	 */
 	public static final byte DELETE = 4;
+	/**
+	 * The entry type indicating an array that has been declared via the
+	 * "+="-operator
+	 */
+	public static final byte PLUSEQUAL_ARRAY = 5;
 
 	/**
 	 * Gets the type of this entry
@@ -69,15 +74,26 @@ public abstract class ConfigClassEntry implements ITextifyable {
 
 		reader.consumeWhithespace();
 
-		if (reader.peek() == (int) '=') {
+		int c = reader.peek();
+
+		if (c == (int) '=' || c == (int) '+') {
 			// it is an assignment -> Either ArrayEntry or ValueEntry
-			// consume =
-			reader.read();
+
+			if (c == (int) '+') {
+				if (!isArray) {
+					throw new ConfigException("Encountered + after non-array definition (most likely part of +=)!");
+				} else {
+					reader.expect('+');
+				}
+			}
+
+			reader.expect('=');
+
 			reader.consumeWhithespace();
 
 			if (isArray) {
 				// it's an array
-				return ArrayEntry.fromText(reader, id);
+				return ArrayEntry.fromText(reader, id, c == (int) '+');
 			} else {
 				// it's a value
 				return ValueEntry.fromText(reader, id);
@@ -90,11 +106,11 @@ public abstract class ConfigClassEntry implements ITextifyable {
 
 			String name = reader.readWord();
 			reader.consumeWhithespace();
-			
-			if(reader.peek() == ';') {
+
+			if (reader.peek() == ';') {
 				return new SubclassEntry(new ConfigClass(name, "", new ConfigClassEntry[0]));
 			} else {
-			return SubclassEntry.fromText(reader, name);
+				return SubclassEntry.fromText(reader, name);
 			}
 		}
 	}

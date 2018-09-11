@@ -32,10 +32,13 @@ public abstract class FieldEntry extends ConfigClassEntry {
 	public boolean hasVarName() {
 		return varName != null;
 	}
-	
+
 	@Override
 	public String toText() {
-		return (hasVarName() ? getVarName() + " = " : "") + getFieldValueString();
+		return (hasVarName()
+				? (getVarName() + " = "
+						+ ((this instanceof ArrayEntry && ((ArrayEntry) this).isAppending()) ? "+" : ""))
+				: "") + getFieldValueString();
 	}
 
 	/**
