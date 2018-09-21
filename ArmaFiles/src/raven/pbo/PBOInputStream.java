@@ -57,9 +57,7 @@ public class PBOInputStream extends InputStream {
 	 * @throws IOException
 	 */
 	protected void pointStream() throws IOException {
-		for (int i = 0; i < entry.getStartOffset(); i++) {
-			internalStream.read();
-		}
+		internalStream.getChannel().position(entry.getStartOffset());
 	}
 
 	@Override

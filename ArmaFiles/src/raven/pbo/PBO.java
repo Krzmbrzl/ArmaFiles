@@ -183,4 +183,27 @@ public class PBO {
 		return null;
 	}
 
+	/**
+	 * Gets the prefix for this PBO or <code>null</code> if there is none
+	 */
+	public String getPrefix() {
+		if (headerExtension == null || headerExtension.length < 2) {
+			return null;
+		}
+
+		for (int i = 0; i < headerExtension.length - 1; i++) {
+			String current = headerExtension[i];
+
+			if (current == null) {
+				return null;
+			}
+
+			if (current.toLowerCase().equals("prefix")) {
+				return headerExtension[i + 1];
+			}
+		}
+
+		return null;
+	}
+
 }
