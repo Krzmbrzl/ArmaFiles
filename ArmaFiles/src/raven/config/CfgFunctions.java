@@ -91,11 +91,10 @@ public class CfgFunctions extends ConfigClass {
 				}
 
 				for (ConfigClassEntry currentFunctionEntry : categoryClass.getEntries()) {
-					if (!(currentFunctionEntry instanceof ConfigClassEntry)) {
+					if (!(currentFunctionEntry instanceof SubclassEntry)) {
 						// ignore
 						continue;
 					} else {
-
 						ConfigClass functionClass = ((SubclassEntry) currentFunctionEntry).getReferencedClass();
 
 						String functionName = tag + "_fnc_" + functionClass.getName();
