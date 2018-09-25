@@ -1,13 +1,8 @@
 package raven.config;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import raven.misc.ByteReader;
-import raven.pbo.PBO;
-import raven.pbo.PBOEntry;
 
 public class CfgFunctions extends ConfigClass {
 
