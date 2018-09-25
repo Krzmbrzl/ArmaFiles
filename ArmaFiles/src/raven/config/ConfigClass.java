@@ -137,7 +137,9 @@ public class ConfigClass implements ITextifyable {
 				entries[i] = new SubclassEntry(new ConfigClass(reader.readString(), "", new ConfigClassEntry[0]));
 				break;
 			case ConfigClassEntry.DELETE:
-				throw new RapificationException("Delete entrries are not supported!");
+				// ignore class-deleting for now -> Read name and discard
+				reader.readString();
+				break;
 			default:
 				throw new RapificationException("Unknown entry type: " + entryType);
 			}
@@ -309,11 +311,12 @@ public class ConfigClass implements ITextifyable {
 	 * @return The respective field or <code>null</code> if none could be found
 	 */
 	public FieldEntry getField(String name, boolean recursive) {
+		name = name.toLowerCase();
 		for (ConfigClassEntry current : getEntries()) {
 			if (current instanceof ValueEntry) {
 				ValueEntry valEntry = (ValueEntry) current;
 
-				if (valEntry.hasVarName() && valEntry.getVarName().equals(name)) {
+				if (valEntry.hasVarName() && valEntry.getVarName().toLowerCase().equals(name)) {
 					return valEntry;
 				}
 			} else {
@@ -350,9 +353,11 @@ public class ConfigClass implements ITextifyable {
 	 *         could be found
 	 */
 	public ConfigClass getSubclass(String name, boolean recursive) {
+		name = name.toLowerCase();
+		
 		for (ConfigClassEntry current : getEntries()) {
 			if (current instanceof SubclassEntry && !((SubclassEntry) current).isExtern()) {
-				if (((SubclassEntry) current).getClassName().equals(name)) {
+				if (((SubclassEntry) current).getClassName().toLowerCase().equals(name)) {
 					return ((SubclassEntry) current).getReferencedClass();
 				} else {
 					if (recursive) {

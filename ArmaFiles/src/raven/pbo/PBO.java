@@ -174,8 +174,9 @@ public class PBO {
 	 * @return The respective entry or <code>null</code> if none could be found
 	 */
 	public PBOEntry getEntry(String name) {
+		name = name.toLowerCase();
 		for (PBOEntry current : entries) {
-			if (current.getFileName().equals(name)) {
+			if (current.getFileName().toLowerCase().equals(name)) {
 				return current;
 			}
 		}

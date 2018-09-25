@@ -1,7 +1,13 @@
 package raven.config;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import raven.misc.ByteReader;
+import raven.pbo.PBO;
+import raven.pbo.PBOEntry;
 
 public class CfgFunctions extends ConfigClass {
 
@@ -9,7 +15,6 @@ public class CfgFunctions extends ConfigClass {
 	 * The name of this class
 	 */
 	public static final String NAME = "CfgFunctions";
-
 
 	/**
 	 * A map to keep track of all functions defined in this CfgFunctions
@@ -19,7 +24,7 @@ public class CfgFunctions extends ConfigClass {
 	public CfgFunctions(ConfigClass input) throws ConfigException {
 		super(NAME, input.getParentClass(), input.getEntries());
 
-		if (!input.getName().equals(NAME)) {
+		if (!input.getName().equalsIgnoreCase(NAME)) {
 			throw new ConfigException("Can't create a CfgFunctions of a class whose name isn't CfgFunctions!");
 		}
 
@@ -27,9 +32,9 @@ public class CfgFunctions extends ConfigClass {
 	}
 
 	/**
-	 * Tries to locate a CfgFunctions-class in the given Config class. This is done
-	 * by first checking the class itself and after that consecutively checking all
-	 * entries in this class (and subclasses)
+	 * Tries to locate a CfgFunctions-class in the given Config class. This is
+	 * done by first checking the class itself and after that consecutively
+	 * checking all entries in this class (and subclasses)
 	 * 
 	 * @param cl
 	 *            The {@linkplain ConfigClass} to search
@@ -38,7 +43,7 @@ public class CfgFunctions extends ConfigClass {
 	 * @throws ConfigException
 	 */
 	public static CfgFunctions locate(ConfigClass cl) throws ConfigException {
-		if (cl.hasName() && cl.getName().equals(NAME)) {
+		if (cl.hasName() && cl.getName().equalsIgnoreCase(NAME)) {
 			return new CfgFunctions(cl);
 		}
 
@@ -59,28 +64,55 @@ public class CfgFunctions extends ConfigClass {
 
 	public void init() throws CfgFunctionsException {
 		for (ConfigClassEntry currentTagEntry : getEntries()) {
-			if (!(currentTagEntry instanceof SubclassEntry) || ((SubclassEntry) currentTagEntry).isExtern()) {
-				throw new CfgFunctionsException("CfgFunctions may only contain explicit (non-extern) subclasses!");
+			if (!(currentTagEntry instanceof SubclassEntry)) {
+				// print error but try to ignore
+				System.out.println("[INFO]: Unprocessed entry in CfgFunctions: " + currentTagEntry.toString());
+				continue;
 			}
 
 			ConfigClass tagClass = ((SubclassEntry) currentTagEntry).getReferencedClass();
 			String tag = tagClass.getName();
 
-			for (ConfigClassEntry currentCategoryEntry : tagClass.getEntries()) {
-				if (!(currentCategoryEntry instanceof SubclassEntry
-						|| !((SubclassEntry) currentCategoryEntry).isExtern())) {
-					throw new CfgFunctionsException(
-							"Tag-class in CfgFunctions may only contain explicit (non-extern) subclasses!");
-				}
+			// pretend to do some config-sorcery that takes place in
+			// a3\Addons\functions_f.pbo\config.bin
+			// This does declare some "base-tag-types" that implicitly set the
+			// tag to "BIS"
+			if (tag.toLowerCase().equals("a3") || tag.toLowerCase().equals("hsim") || tag.toLowerCase().equals("a2pmc")
+					|| tag.toLowerCase().equals("a2oa") || tag.toLowerCase().equals("a2")) {
+				tag = "BIS";
+			}
 
-				ConfigClass categoryClass = ((SubclassEntry) currentCategoryEntry).getReferencedClass();
-				String pathPrefix = "functions/" + categoryClass.getName();
+			// process fields first
+			for (FieldEntry currentEntry : tagClass.getFields()) {
+				if (currentEntry.hasVarName() && currentEntry.getVarName().toLowerCase().equals("tag")) {
+					if (!(currentEntry instanceof ValueEntry)
+							|| ((ValueEntry) currentEntry).getDataType() != ValueEntry.STRING) {
+						throw new CfgFunctionsException("Invalid tag-assignment (invalid type)!");
+					}
+
+					tag = ((ValueEntry) currentEntry).getString();
+
+					if (tag.isEmpty()) {
+						throw new CfgFunctionsException(
+								"Empty tag definition in CfgFunctions >> " + tagClass.getName() + "!");
+					}
+				} else {
+					System.out.println("[INFO]: Unprocessed field in CfgFunctions >> " + tagClass.getName() + ": "
+							+ currentEntry.toString());
+				}
+			}
+
+			for (SubclassEntry currentCategoryEntry : tagClass.getSubclasses()) {
+				String localTag = tag;
+
+				ConfigClass categoryClass = currentCategoryEntry.getReferencedClass();
+				String pathPrefix = "functions" + File.separator + categoryClass.getName();
 
 				// check for tag-overwrite
 				ConfigClassEntry tagEntry = categoryClass.getField("tag", false);
 				if (tagEntry != null && tagEntry instanceof ValueEntry
 						&& ((ValueEntry) tagEntry).getDataType() == ValueEntry.STRING) {
-					tag = ((ValueEntry) tagEntry).getString();
+					localTag = ((ValueEntry) tagEntry).getString();
 				}
 
 				// check for file-specification
@@ -97,7 +129,7 @@ public class CfgFunctions extends ConfigClass {
 					} else {
 						ConfigClass functionClass = ((SubclassEntry) currentFunctionEntry).getReferencedClass();
 
-						String functionName = tag + "_fnc_" + functionClass.getName();
+						String functionName = localTag + "_fnc_" + functionClass.getName();
 
 						// search for extension definition
 						String extension = ".sqf";
@@ -115,7 +147,7 @@ public class CfgFunctions extends ConfigClass {
 							path = ((ValueEntry) functionFileEntry).getString();
 						} else {
 							// use pathPrefix and className
-							path = pathPrefix + "fn_" + functionClass.getName() + extension;
+							path = pathPrefix + File.separator + "fn_" + functionClass.getName() + extension;
 						}
 
 						// assemble all attributes
@@ -130,12 +162,7 @@ public class CfgFunctions extends ConfigClass {
 						functionMap.put(functionName.toLowerCase(), new ConfigFunction(functionName, path, attributes));
 					}
 
-
 				}
-
-				// reset tag and pathPrefix in case it got overwritten
-				tag = tagClass.getName();
-				pathPrefix = "functions/" + categoryClass.getName();
 			}
 		}
 	}
@@ -145,5 +172,46 @@ public class CfgFunctions extends ConfigClass {
 	 */
 	public Map<String, ConfigFunction> getDefinedFunctions() {
 		return new HashMap<>(functionMap);
+	}
+
+	public static void main(String[] args) throws IOException, RapificationException, ConfigException {
+		File root = new File("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma 3");
+
+		worker(root);
+	}
+
+	private static void worker(File file) throws IOException, RapificationException, ConfigException {
+		if (file.isDirectory()) {
+			for (File current : file.listFiles()) {
+				worker(current);
+			}
+		} else {
+			if (!file.getName().toLowerCase().endsWith(".pbo")) {
+				return;
+			}
+
+			PBO pbo = new PBO(file);
+
+			PBOEntry functionsEntry = pbo.getEntry("config.bin");
+
+			if (functionsEntry == null) {
+				return;
+			}
+
+			ConfigClass cfg = ConfigClass.fromRapifiedFile(new ByteReader(functionsEntry.toStream()));
+
+			ConfigClass functionsClass = cfg.getSubclass("CfgFunctions", false);
+
+			if (functionsClass == null) {
+				return;
+			}
+
+			CfgFunctions cfgFunctions = new CfgFunctions(functionsClass);
+			cfgFunctions.init();
+
+			System.out.println(file.getAbsolutePath());
+			System.out.println("\t" + cfgFunctions.getDefinedFunctions().size() + " - "
+					+ cfgFunctions.getDefinedFunctions().keySet());
+		}
 	}
 }
