@@ -170,7 +170,8 @@ public class PBO {
 	 * Tries to find the {@linkplain PBOEntry} with the given name
 	 * 
 	 * @param name
-	 *            The name to search for
+	 *            The name to search for (this represents a path relative to the
+	 *            PBO's root)
 	 * @return The respective entry or <code>null</code> if none could be found
 	 */
 	public PBOEntry getEntry(String name) {
@@ -205,5 +206,28 @@ public class PBO {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Tries to find all files inside this PBO with the given name regardless in
+	 * what directory they are.
+	 * 
+	 * @param name
+	 *            The name of the files to find
+	 * @return A {@linkplain List} containing the entries for the respective
+	 *         files
+	 */
+	public List<PBOEntry> getFile(String name) {
+		name = name.toLowerCase();
+
+		List<PBOEntry> matchingEntries = new ArrayList<>();
+
+		for (PBOEntry current : entries) {
+			if (current.getFileName().toLowerCase().equals(name)) {
+				matchingEntries.add(current);
+			}
+		}
+
+		return matchingEntries;
 	}
 }
