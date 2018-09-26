@@ -27,7 +27,8 @@ public class PBO {
 	 */
 	protected List<PBOEntry> entries;
 	/**
-	 * The offset at which the actual content of the PBO starts (After the header)
+	 * The offset at which the actual content of the PBO starts (After the
+	 * header)
 	 */
 	protected int contentStart;
 	/**
@@ -35,13 +36,12 @@ public class PBO {
 	 */
 	protected String[] headerExtension;
 
-
 	/**
 	 * Creates a new PBO object from the given file
 	 * 
 	 * @param file
-	 *            The {@linkplain FIle} pointing to the PBO on the hard drive. This
-	 *            has to exist
+	 *            The {@linkplain FIle} pointing to the PBO on the hard drive.
+	 *            This has to exist
 	 * @throws IOException
 	 */
 	public PBO(File file) throws IOException {
@@ -150,8 +150,8 @@ public class PBO {
 	}
 
 	/**
-	 * Gets the offset in this file at which the actual content begins. This is the
-	 * offset all {@linkplain PBOEntry#getStartOffset()} are relative to
+	 * Gets the offset in this file at which the actual content begins. This is
+	 * the offset all {@linkplain PBOEntry#getStartOffset()} are relative to
 	 */
 	public int getContentOffset() {
 		return contentStart;
@@ -206,5 +206,4 @@ public class PBO {
 
 		return null;
 	}
-
 }

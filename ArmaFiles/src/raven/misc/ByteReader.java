@@ -1,5 +1,6 @@
 package raven.misc;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +36,7 @@ public class ByteReader implements Closeable {
 	 *            The {@linkplain InputStream} to use as a data source
 	 */
 	public ByteReader(InputStream in) {
-		this.source = in;
+		this.source = new BufferedInputStream(in);
 		readBytes = 0;
 		unreadStack = new Stack<>();
 	}

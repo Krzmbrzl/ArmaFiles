@@ -1,5 +1,6 @@
 package raven.misc;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +20,7 @@ public class TextReader implements Closeable {
 	protected Stack<Integer> unreadStack;
 
 	public TextReader(InputStream in) {
-		this.source = in;
+		this.source = new BufferedInputStream(in);
 		this.readBytes = 0;
 		this.unreadStack = new Stack<>();
 	}
