@@ -1,13 +1,8 @@
 package raven.config;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import raven.misc.ByteReader;
-import raven.pbo.PBO;
-import raven.pbo.PBOEntry;
 
 public class CfgFunctions extends ConfigClass {
 
@@ -172,46 +167,5 @@ public class CfgFunctions extends ConfigClass {
 	 */
 	public Map<String, ConfigFunction> getDefinedFunctions() {
 		return new HashMap<>(functionMap);
-	}
-
-	public static void main(String[] args) throws IOException, RapificationException, ConfigException {
-		File root = new File("C:\\Program Files (x86)\\Steam\\steamapps\\common\\Arma 3");
-
-		worker(root);
-	}
-
-	private static void worker(File file) throws IOException, RapificationException, ConfigException {
-		if (file.isDirectory()) {
-			for (File current : file.listFiles()) {
-				worker(current);
-			}
-		} else {
-			if (!file.getName().toLowerCase().endsWith(".pbo")) {
-				return;
-			}
-
-			PBO pbo = new PBO(file);
-
-			PBOEntry functionsEntry = pbo.getEntry("config.bin");
-
-			if (functionsEntry == null) {
-				return;
-			}
-
-			ConfigClass cfg = ConfigClass.fromRapifiedFile(new ByteReader(functionsEntry.toStream()));
-
-			ConfigClass functionsClass = cfg.getSubclass("CfgFunctions", false);
-
-			if (functionsClass == null) {
-				return;
-			}
-
-			CfgFunctions cfgFunctions = new CfgFunctions(functionsClass);
-			cfgFunctions.init();
-
-			System.out.println(file.getAbsolutePath());
-			System.out.println("\t" + cfgFunctions.getDefinedFunctions().size() + " - "
-					+ cfgFunctions.getDefinedFunctions().keySet());
-		}
 	}
 }
