@@ -108,11 +108,11 @@ public class SubclassEntry extends ConfigClassEntry {
 		if (reader.peek() == ':') {
 			// read parent class
 			reader.expect(':');
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 
 			parentClass = reader.readWord();
 
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 		}
 
 		reader.expect('{');

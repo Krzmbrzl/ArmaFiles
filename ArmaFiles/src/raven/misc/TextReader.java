@@ -200,7 +200,7 @@ public class TextReader implements Closeable {
 	 * 
 	 * @throws IOException
 	 */
-	public void consumeWhithespace() throws IOException {
+	public void consumeWhitespace() throws IOException {
 		int c;
 
 		while ((c = read()) != -1 && Character.isWhitespace(c)) {

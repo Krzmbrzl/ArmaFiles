@@ -209,15 +209,15 @@ public class ConfigClass implements ITextifyable {
 			throws IOException, ConfigException {
 		List<ConfigClassEntry> entries = new ArrayList<>();
 
-		reader.consumeWhithespace();
+		reader.consumeWhitespace();
 
 		int c;
 		while ((c = reader.peek()) != -1 && c != '}') {
 			entries.add(ConfigClassEntry.fromText(reader));
 
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 			reader.expect(';');
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 		}
 
 		return new ConfigClass(className, "", entries.toArray(new ConfigClassEntry[entries.size()]));

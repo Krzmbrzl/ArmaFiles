@@ -97,7 +97,7 @@ public class ArrayEntry extends FieldEntry {
 	 * @throws IOException
 	 */
 	protected static ArrayEntry fromText(TextReader reader, String varName, boolean plusEqual) throws IOException {
-		reader.consumeWhithespace();
+		reader.consumeWhitespace();
 
 		return new ArrayEntry(varName, ArrayStruct.fromText(reader), plusEqual);
 	}

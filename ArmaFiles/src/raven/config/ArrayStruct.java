@@ -97,7 +97,7 @@ public class ArrayStruct implements ITextifyable {
 	 */
 	protected static ArrayStruct fromText(TextReader reader) throws IOException {
 		reader.expect('{');
-		reader.consumeWhithespace();
+		reader.consumeWhitespace();
 
 		List<ConfigClassEntry> content = new ArrayList<>();
 
@@ -112,7 +112,7 @@ public class ArrayStruct implements ITextifyable {
 			case ',':
 				// consume comma and all following WS
 				reader.read();
-				reader.consumeWhithespace();
+				reader.consumeWhitespace();
 				break;
 			case '}':
 				// end of array reached

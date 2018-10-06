@@ -62,7 +62,7 @@ public abstract class ConfigClassEntry implements ITextifyable {
 	 * @throws ConfigException
 	 */
 	protected static ConfigClassEntry fromText(TextReader reader) throws IOException, ConfigException {
-		reader.consumeWhithespace();
+		reader.consumeWhitespace();
 
 		String id = reader.readWord();
 		boolean isArray = false;
@@ -72,7 +72,7 @@ public abstract class ConfigClassEntry implements ITextifyable {
 			isArray = true;
 		}
 
-		reader.consumeWhithespace();
+		reader.consumeWhitespace();
 
 		int c = reader.peek();
 
@@ -89,7 +89,7 @@ public abstract class ConfigClassEntry implements ITextifyable {
 
 			reader.expect('=');
 
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 
 			if (isArray) {
 				// it's an array
@@ -105,7 +105,7 @@ public abstract class ConfigClassEntry implements ITextifyable {
 			}
 
 			String name = reader.readWord();
-			reader.consumeWhithespace();
+			reader.consumeWhitespace();
 
 			if (reader.peek() == ';') {
 				return new SubclassEntry(new ConfigClass(name, "", new ConfigClassEntry[0]));
