@@ -2,11 +2,9 @@ package raven.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.Scanner;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -27,34 +25,50 @@ class PreprocessorTest {
 	@Test
 	public void fileTests() throws IOException {
 		int amountOfNormalTests = 16;
+
+		for (int i = 1; i <= amountOfNormalTests; i++) {
+			String name = "Test" + (i < 10 ? "0" : "") + i + ".sqf";
+
+			doTest(name);
+		}
+	}
+
+	@Test
+	public void errorFileTests() throws IOException {
 		int amountOfErrorTests = 11;
 
-		for (int i = 1; i <= amountOfNormalTests + amountOfErrorTests; i++) {
-			int counter = i;
-			String name;
+		for (int i = 1; i <= amountOfErrorTests; i++) {
+			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
 
-			if (counter <= amountOfNormalTests) {
-				name = "Test" + (counter < 10 ? "0" : "") + counter + ".sqf";
-			} else {
-				counter -= amountOfNormalTests;
-				name = "ErrorTest" + (counter < 10 ? "0" : "") + counter + ".sqf";
-			}
-
-
-			TextReader inReader = new TextReader(getResourceStream(name));
-
-			ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-			prep.preprocess(inReader, out);
-
-			inReader.close();
-			
-			String expected = convertStreamToString(getResourceStream(name.replace("Test", "Result")));
-			String actual = out.toString();
-
-			assertEquals(expected, actual, name + " did not match the given result!");
-			System.out.println(name + " passed testing...");
+			doTest(name);
 		}
+	}
+
+	/**
+	 * Performs the actual testing on the file with the given name. The name is
+	 * expected to contain the substring "Test". Furthermore another file is
+	 * expected to be present having the same name except that "Test" has been
+	 * replaced with "Result". This second file is used to determine the expected to
+	 * represent the expected output of the preprocessing of the given file.
+	 * 
+	 * @param name
+	 *            The name of the file to test
+	 * @throws IOException
+	 */
+	protected void doTest(String name) throws IOException {
+		TextReader inReader = new TextReader(getResourceStream(name));
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+		prep.preprocess(inReader, out);
+
+		inReader.close();
+
+		String expected = convertStreamToString(getResourceStream(name.replace("Test", "Result")));
+		String actual = out.toString();
+
+		assertEquals(expected, actual, name + " did not match the given result!");
+		System.out.println(name + " passed testing...");
 	}
 
 	@Test
