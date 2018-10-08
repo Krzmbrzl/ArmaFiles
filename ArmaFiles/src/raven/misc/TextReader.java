@@ -34,11 +34,14 @@ public class TextReader implements Closeable {
 	public int read() throws IOException {
 		readBytes++;
 
+		int c;
 		if (unreadStack.size() == 0) {
-			return source.read();
+			c = source.read();
 		} else {
-			return unreadStack.pop();
+			c = unreadStack.pop();
 		}
+		
+		return c;
 	}
 
 	/**
@@ -134,11 +137,11 @@ public class TextReader implements Closeable {
 
 		while ((c = (char) read()) != (char) -1) {
 			if (c == delimiter) {
-				char peek = (char) read();
+				int peek = read();
 
 				if (peek == delimiter) {
 					// escaped quotation mark -> add single quotation mark
-					builder.append(peek);
+					builder.append((char) peek);
 				} else {
 					// the String has been terminated
 					unread(peek);

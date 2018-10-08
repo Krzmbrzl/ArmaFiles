@@ -28,36 +28,43 @@ public class Macro {
 
 		String macroContent = body;
 
+		// replace double-hashtags in order for them to not interfere with the
+		// stringification
+		macroContent = macroContent.replace("##", String.valueOf(Character.MAX_VALUE));
+
 		// replace arguments in body
 		for (int i = 0; i < argumentNames.size(); i++) {
 			String currentPlaceholder = argumentNames.get(i);
 
-			Pattern p = Pattern.compile("(((?:^| |;)|##)(" + Pattern.quote(currentPlaceholder)
-					+ ")((?=;| |$)|##))|(?:#)(" + Pattern.quote(currentPlaceholder) + ")((?:;| |$)|##)");
-			Matcher matcher = p.matcher(macroContent);
+			Pattern stringifyPattern = Pattern.compile("(?:[^#]|^)(#\\w*)");
+			Matcher stringifyMatcher = stringifyPattern.matcher(macroContent);
 
-			int startindex = 0;
+			int startIndex = 0;
 
-			while (matcher.find(startindex)) {
-				int start = matcher.start(1);
-				int end = matcher.end(1);
+			while (stringifyMatcher.find(startIndex)) {
+				int start = stringifyMatcher.start(1);
+				int end = stringifyMatcher.end(1);
+				String stringifyArgument = stringifyMatcher.group(1);
 
-				if (start < 0) {
-					// the second alternative matched -> use group 5
-					start = matcher.start(5);
-					end = matcher.end(5) ;
-				}
+				// remove leading #
+				stringifyArgument = stringifyArgument.substring(1);
 
-				macroContent = macroContent.substring(0, start) + arguments.get(i) + macroContent.substring(end);
-
-				startindex = start + arguments.get(i).length();
-
-				matcher = p.matcher(macroContent);
+				// insert into content but wrap in quotes
+				macroContent = macroContent.substring(0, start) + "\"" + stringifyArgument + "\""
+						+ macroContent.substring(end);
+				
+				stringifyMatcher = stringifyPattern.matcher(macroContent);
 			}
+
+			// replace arguments
+			Pattern argumentPattern = Pattern.compile("\\b" + Pattern.quote(currentPlaceholder) + "\\b");
+			Matcher matcher = argumentPattern.matcher(macroContent);
+			macroContent = matcher.replaceAll(Preprocessor.expandAll(arguments.get(i), macros));
 		}
 
-		// replace any redundant ##
-		macroContent = macroContent.replace("##", "");
+		// remove "##", that have been replaced by a single Character.MAX_VALUE, in
+		// order to "concatenate"
+		macroContent = macroContent.replace(String.valueOf(Character.MAX_VALUE), "");
 
 		return Preprocessor.expandAll(macroContent, macros);
 	}

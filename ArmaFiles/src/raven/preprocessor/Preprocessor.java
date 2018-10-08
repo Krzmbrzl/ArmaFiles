@@ -1,5 +1,6 @@
 package raven.preprocessor;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ public class Preprocessor {
 	protected TextReader in;
 	protected OutputStream out;
 	protected Map<String, Macro> macros;
+	protected boolean usesWindowsNewline;
 
 	public Preprocessor() {
 		macros = new HashMap<>();
@@ -25,7 +27,13 @@ public class Preprocessor {
 		this.in = in;
 		this.out = out;
 
-		doPreprocess();
+		// prevent thread from terminating because of some error during preprocessing
+		try {
+			doPreprocess();
+		} catch (Exception e) {
+			// TODO: create error with the respective exception-message
+			e.printStackTrace();
+		}
 	}
 
 	protected boolean doPreprocess() throws IOException {
@@ -43,21 +51,21 @@ public class Preprocessor {
 				String str = in.readString();
 
 				if (str != null) {
-					out.write(("\"" + str + "\"").getBytes());
+					writeToOut(("\"" + str + "\""));
 				}
 			} else {
 				boolean newLine = c == '\n';
 
 				if (newLine | beginOfInput) {
 					while (c == '\n') {
-						out.write((char) c);
+						writeToOut((char) c);
 
 						c = readNext();
 					}
 
 					in.unread(c);
 
-					skipWhitespace(true);
+					skipWhitespace(false);
 
 					c = readNext();
 
@@ -113,18 +121,24 @@ public class Preprocessor {
 						skipLineComment();
 					} else {
 						// it's not a comment
-						out.write((char) c);
+						writeToOut((char) c);
 					}
 				} else {
 					if (Character.isWhitespace(c)) {
-						out.write((char) c);
+						writeToOut((char) c);
 					} else {
 						// unread first so whole word gets read
 						in.unread(c);
 
 						String word = in.readWord();
 
-						tryExpandMacro(word);
+						if (!word.isEmpty()) {
+							potentialMacro(word);
+						} else {
+							// the current character doesn't appear to be part of a word -> read it in as a
+							// single character
+							writeToOut((char) readNext());
+						}
 					}
 				}
 			}
@@ -136,12 +150,12 @@ public class Preprocessor {
 		return ok;
 	}
 
-	protected void tryExpandMacro(String word) throws IOException {
+	protected void potentialMacro(String word) throws IOException {
 		if (macros.containsKey(word)) {
-			out.write(doExpandMacro(word).getBytes());
+			writeToOut(doExpandMacro(word));
 		} else {
 			// write to output unchanged
-			out.write(word.getBytes());
+			writeToOut(word);
 		}
 	}
 
@@ -209,12 +223,18 @@ public class Preprocessor {
 		boolean foundStar = false;
 
 		while (proceed) {
+			proceed = !(foundStar && c == '/') && c >= 0;
+
 			foundStar = c == '*';
 
-			proceed = !(foundStar && c == '/');
+			if (c == '\n') {
+				writePreservedNewline();
+			}
 
 			c = readNext();
 		}
+
+		in.unread(c);
 	}
 
 	protected boolean undefBlock() throws IOException {
@@ -228,23 +248,27 @@ public class Preprocessor {
 	protected boolean ifDefBlock(boolean hasToBeDefined) throws IOException {
 		String macroName = in.readWord();
 
-		boolean firstIfBlock = hasToBeDefined && macros.containsKey(macroName);
+		boolean firstIfBlock = hasToBeDefined == macros.containsKey(macroName);
 
 		StringBuilder relevantBlock = new StringBuilder();
 
-		boolean newLine = false;
 		boolean inRelevantBlock = firstIfBlock;
 		int c = readNext();
+		boolean newLine = c == '\n';
 
 		while (c >= 0) {
 			if (newLine) {
 				if (Character.isWhitespace(c)) {
-					if (inRelevantBlock) {
+					if (inRelevantBlock && c == '\n') {
 						relevantBlock.append((char) c);
 					}
 
 					// "skip" WS at line-start
-					continue;
+					c = readNext();
+
+					if (Character.isWhitespace(c)) {
+						continue;
+					}
 				}
 				if (c == '#') {
 					String command = in.readWord();
@@ -254,6 +278,10 @@ public class Preprocessor {
 					}
 					if (command.equals("endif")) {
 						break;
+					}
+				} else {
+					if (inRelevantBlock) {
+						relevantBlock.append((char) c);
 					}
 				}
 			} else {
@@ -266,9 +294,12 @@ public class Preprocessor {
 			c = readNext();
 		}
 
-		out.write(expandAll(relevantBlock.toString(), macros).getBytes());
+		relevantBlock = relevantBlock.reverse();
+		for (int i = 0; i < relevantBlock.length(); i++) {
+			in.unread((int) relevantBlock.charAt(i));
+		}
 
-		return false;
+		return true;
 	}
 
 	protected boolean defineBlock() throws IOException {
@@ -311,9 +342,12 @@ public class Preprocessor {
 			if (foundBackslash && c == '\n') {
 				// remove the backslash as it was only to escape the NL
 				macroBody.setLength(macroBody.length() - 1);
-			}
 
-			macroBody.append((char) c);
+				writePreservedNewline();
+			} else {
+				// escaped NLs aren't part of the macro body
+				macroBody.append((char) c);
+			}
 
 			foundBackslash = c == '\\';
 		}
@@ -336,10 +370,10 @@ public class Preprocessor {
 
 	protected boolean includeBlock() throws IOException {
 		String path = in.readString();
-		
+
 		System.err.println("Including \"" + path + "\"");
 		// TODO
-		
+
 		return true;
 	}
 
@@ -355,6 +389,7 @@ public class Preprocessor {
 
 		if (c == '\r') {
 			c = in.read();
+			usesWindowsNewline = true;
 		}
 
 		return c;
@@ -374,7 +409,7 @@ public class Preprocessor {
 
 		while (Character.isWhitespace(c)) {
 			if (writeAll || c == '\n') {
-				out.write((char) c);
+				writeToOut((char) c);
 			}
 
 			c = readNext();
@@ -391,6 +426,27 @@ public class Preprocessor {
 		in = null;
 		out = null;
 		macros.clear();
+	}
+
+	protected void writePreservedNewline() throws IOException {
+		if (usesWindowsNewline) {
+			out.write('\r');
+		}
+		out.write('\n');
+	}
+
+	protected void writeToOut(String content) throws IOException {
+		if (usesWindowsNewline) {
+			content = content.replace("\n", "\r\n");
+		}
+		out.write(content.getBytes());
+	}
+
+	protected void writeToOut(char c) throws IOException {
+		if (c == '\n' && usesWindowsNewline) {
+			out.write('\r');
+		}
+		out.write(c);
 	}
 
 	/**
@@ -426,54 +482,12 @@ public class Preprocessor {
 			if (Character.isJavaIdentifierPart(c)) {
 				currentWord.append(c);
 			} else {
-				if (foundHashtag) {
-					expandedContent.append("\"");
-				}
+				int before = i;
+				i = tryExpand(content, foundHashtag, currentWord, expandedContent, c, i, macros);
 
-				if (currentWord.length() > 0) {
-					if (macros.containsKey(currentWord.toString())) {
-						// this is a macro that has to be expanded
-						List<String> argList = new ArrayList<>();
-
-						if (c == '(') {
-							// the macro has arguments
-							StringBuilder currentArg = new StringBuilder();
-
-							// skip the already encountered opening brace
-							i++;
-							for (; i < content.length(); i++) {
-								// use same counter for iterating through the String
-								c = content.charAt(i);
-
-								if (c == ')') {
-									break;
-								}
-								if (c == ',') {
-									argList.add(currentArg.toString());
-									currentArg.setLength(0);
-								} else {
-									currentArg.append(c);
-								}
-							}
-
-							argList.add(currentArg.toString());
-
-							// No need to add the closing parenthesis
-							c = Character.MIN_VALUE;
-						}
-
-						// expand macro and append the expanded text
-						expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros));
-						// The macro has been expanded so there is no need to add currentWord
-						currentWord.setLength(0);
-					}
-				}
-
-				expandedContent.append(currentWord);
-				currentWord.setLength(0);
-
-				if (foundHashtag) {
-					expandedContent.append("\"");
+				if (i != before) {
+					// continue with the new current character as tryExpand performed some magic
+					continue;
 				}
 
 				foundHashtag = false;
@@ -492,8 +506,60 @@ public class Preprocessor {
 			}
 		}
 
-		expandedContent.append(currentWord);
+		tryExpand(content, foundHashtag, currentWord, expandedContent, Character.MIN_VALUE, content.length(), macros);
 
 		return expandedContent.toString();
+	}
+
+	static protected int tryExpand(String content, boolean foundHashtag, StringBuilder currentWord,
+			StringBuilder expandedContent, char c, int i, Map<String, Macro> macros) {
+		if (foundHashtag) {
+			expandedContent.append("\"");
+		}
+
+		if (currentWord.length() > 0) {
+			if (macros.containsKey(currentWord.toString())) {
+				// this is a macro that has to be expanded
+				List<String> argList = new ArrayList<>();
+
+				if (c == '(') {
+					// the macro has arguments
+					StringBuilder currentArg = new StringBuilder();
+
+					// skip the already encountered opening brace
+					i++;
+					for (; i < content.length(); i++) {
+						// use same counter for iterating through the String
+						c = content.charAt(i);
+
+						if (c == ')') {
+							break;
+						}
+						if (c == ',') {
+							argList.add(currentArg.toString());
+							currentArg.setLength(0);
+						} else {
+							currentArg.append(c);
+						}
+					}
+
+					argList.add(currentArg.toString());
+				}
+
+				// expand macro and append the expanded text
+				expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros));
+				// The macro has been expanded so there is no need to add currentWord
+				currentWord.setLength(0);
+			}
+		}
+
+		expandedContent.append(currentWord);
+		currentWord.setLength(0);
+
+		if (foundHashtag) {
+			expandedContent.append("\"");
+		}
+
+		return i;
 	}
 }
