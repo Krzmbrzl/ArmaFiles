@@ -15,9 +15,15 @@ public class Preprocessor {
 	protected OutputStream out;
 	protected Map<String, Macro> macros;
 	protected boolean usesWindowsNewline;
+	protected PreprocessorWhitespaceHandling wsHandling;
+
+	public Preprocessor(PreprocessorWhitespaceHandling wsHandling) {
+		macros = new HashMap<>();
+		this.wsHandling = wsHandling;
+	}
 
 	public Preprocessor() {
-		macros = new HashMap<>();
+		this(PreprocessorWhitespaceHandling.TOLERANT);
 	}
 
 	public void preprocess(TextReader in, OutputStream out) throws IOException {
@@ -70,8 +76,12 @@ public class Preprocessor {
 
 					if (c == '#') {
 						if (Character.isWhitespace(in.peek())) {
-							// TODO: error about WS
-							skipWhitespace(false);
+							if (wsHandling == PreprocessorWhitespaceHandling.STRICT) {
+								throw new IllegalArgumentException("Whitespace in invalid context!");
+							} else {
+								// TODO: error about WS
+								skipWhitespace(false);
+							}
 						}
 
 						String command = in.readWord();
@@ -158,14 +168,18 @@ public class Preprocessor {
 		}
 	}
 
-	protected String doExpandMacro(String macro) throws IOException {
-		if (!macros.containsKey(macro)) {
-			return macro;
+	protected String doExpandMacro(String macroName) throws IOException {
+		if (!macros.containsKey(macroName)) {
+			return macroName;
 		}
+		
+		Macro macro = macros.get(macroName);
+		int argumentCount = macro.getArgumentCount();
 
 		List<String> arguments = new ArrayList<>();
 
-		if (in.peek() == '(') {
+		// only search for arguments if the macro actually expects them
+		if (argumentCount > 0 && in.peek() == '(') {
 			// there are arguments
 			in.expect('(');
 
@@ -192,12 +206,22 @@ public class Preprocessor {
 				c = readNext();
 			}
 
-			arguments.add(currentArg.toString());
-			in.unread(c);
-			in.expect(')');
+			if (c != ')') {
+				// there's something wrong
+				if (c == -1) {
+					// If the macro isn't closed before the EOF Arma pretends as if the macro was
+					// used with an empty argument
+					arguments.add("");
+				} else {
+					throw new IllegalStateException("Unhandled unclosed macro!");
+				}
+			} else {
+				// everything is okay -> add argument
+				arguments.add(currentArg.toString());
+			}
 		}
 
-		return macros.get(macro).expand(arguments, macros);
+		return macro.expand(arguments, macros);
 	}
 
 	/**
@@ -308,6 +332,9 @@ public class Preprocessor {
 		if (in.peek() == '(') {
 			// parse arguments
 			in.expect('(');
+			
+			// skip WS as leading WS gets removed by Arma
+			skipWhitespace(false);
 
 			String argumentName = in.readWord();
 
@@ -323,6 +350,9 @@ public class Preprocessor {
 					argumentName = null;
 				}
 			}
+			
+			// skip WS as this gets trimmed away from the macro argument by Arma
+			skipWhitespace(false);
 
 			in.expect(')');
 		}
@@ -425,6 +455,7 @@ public class Preprocessor {
 		in = null;
 		out = null;
 		macros.clear();
+		usesWindowsNewline = false;
 	}
 
 	protected void writePreservedNewline() throws IOException {
@@ -560,5 +591,16 @@ public class Preprocessor {
 		}
 
 		return i;
+	}
+
+	/**
+	 * Determine how errors about misplaced WS should be dealt with.
+	 * 
+	 * @param wsHandling
+	 *            The error handling strategy to be used
+	 * @see PreprocessorWhitespaceHandling
+	 */
+	public void setWhitespaceHandling(PreprocessorWhitespaceHandling wsHandling) {
+		this.wsHandling = wsHandling;
 	}
 }

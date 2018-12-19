@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import raven.misc.TextReader;
 import raven.preprocessor.Preprocessor;
+import raven.preprocessor.PreprocessorWhitespaceHandling;
 
 class PreprocessorTest {
 
@@ -19,7 +20,7 @@ class PreprocessorTest {
 
 	@BeforeAll
 	static void setUp() throws Exception {
-		prep = new Preprocessor();
+		prep = new Preprocessor(PreprocessorWhitespaceHandling.STRICT);
 	}
 
 	@Test
@@ -37,7 +38,7 @@ class PreprocessorTest {
 	public void errorFileTests() throws IOException {
 		int amountOfErrorTests = 11;
 
-		for (int i = 1; i <= amountOfErrorTests; i++) {
+		for (int i = 11; i <= amountOfErrorTests; i++) {
 			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
 
 			doTest(name);
@@ -56,6 +57,8 @@ class PreprocessorTest {
 	 * @throws IOException
 	 */
 	protected void doTest(String name) throws IOException {
+		System.out.print("Testing \"" + name + "\"...");
+		
 		TextReader inReader = new TextReader(getResourceStream(name));
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -68,16 +71,7 @@ class PreprocessorTest {
 		String actual = out.toString();
 
 		assertEquals(expected, actual, name + " did not match the given result!");
-		System.out.println(name + " passed testing...");
-	}
-
-	@Test
-	void test() throws IOException {
-		preprocess("#define BLA\n#ifdef BLA Hello\n#else Bye\n#endif");
-	}
-
-	void preprocess(String input) throws IOException {
-		prep.preprocess(new TextReader(getResourceStream("Test01.sqf")), System.out);
+		System.out.println(" - passed");
 	}
 
 	static InputStream getResourceStream(String name) {
