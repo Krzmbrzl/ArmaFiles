@@ -172,14 +172,14 @@ public class Preprocessor {
 		if (!macros.containsKey(macroName)) {
 			return macroName;
 		}
-		
-		Macro macro = macros.get(macroName);
-		int argumentCount = macro.getArgumentCount();
 
-		List<String> arguments = new ArrayList<>();
+		Macro macro = macros.get(macroName);
+
+		List<String> arguments = null;
 
 		// only search for arguments if the macro actually expects them
-		if (argumentCount > 0 && in.peek() == '(') {
+		if (macro.expectsArguments() && in.peek() == '(') {
+			arguments = new ArrayList<>();
 			// there are arguments
 			in.expect('(');
 
@@ -221,7 +221,12 @@ public class Preprocessor {
 			}
 		}
 
-		return macro.expand(arguments, macros);
+		if (!macro.isValid() || (macro.expectsArguments() && arguments != null)
+				|| (!macro.expectsArguments() && arguments == null)) {
+			return macro.expand(arguments, macros, in.peek() == -1);
+		} else {
+			return macroName;
+		}
 	}
 
 	/**
@@ -327,34 +332,71 @@ public class Preprocessor {
 
 	protected boolean defineBlock() throws IOException {
 		String macroName = in.readWord();
-		List<String> arguments = new ArrayList<>();
+		List<String> arguments = null;
+		boolean valid = true;
 
 		if (in.peek() == '(') {
+			arguments = new ArrayList<>();
 			// parse arguments
 			in.expect('(');
-			
+
 			// skip WS as leading WS gets removed by Arma
 			skipWhitespace(false);
 
 			String argumentName = in.readWord();
 
 			while (argumentName != null && !argumentName.isEmpty()) {
-				arguments.add(argumentName);
+				if (in.peek() == ',' || in.peek() == ')') {
+					// add valid argument
+					arguments.add(argumentName);
+				} else {
+					skipWhitespace(false);
+					if (in.peek() != ')') {
+						// TODO: Error about invalid macro definition
+						// this macro definition is invalid
+						valid = false;
+
+						// read all characters until ")" is encountered
+						int c = in.read();
+						while (c != ')' && c != -1) {
+							c = in.read();
+						}
+
+						// unread last character
+						in.unread(c);
+					} else {
+						// The problem was just some trailing space which gets ignored anyways -> add
+						// the argument anyways
+						arguments.add(argumentName);
+					}
+				}
 
 				if (in.peek() == ',') {
 					// there's another macro
 					in.expect(',');
 					argumentName = in.readWord();
+
+					if (argumentName != null && argumentName.isEmpty()) {
+						if (Character.isWhitespace(in.peek())) {
+							skipWhitespace(false);
+							valid = false;
+						}
+					}
 				} else {
 					// no further arguments
 					argumentName = null;
 				}
 			}
-			
+
 			// skip WS as this gets trimmed away from the macro argument by Arma
 			skipWhitespace(false);
 
-			in.expect(')');
+			if (in.peek() == ')') {
+				in.expect(')');
+			} else {
+				// TODO: error about unclosed macro definition
+				System.err.println("Unlosed Macro definition!");
+			}
 		}
 
 		if (in.peek() == ' ') {
@@ -390,7 +432,7 @@ public class Preprocessor {
 			return false;
 		}
 
-		Macro macro = new Macro(macroName, arguments, macroBody.toString());
+		Macro macro = new Macro(macroName, arguments, macroBody.toString(), valid);
 
 		macros.put(macroName, macro);
 
@@ -549,35 +591,44 @@ public class Preprocessor {
 
 		if (currentWord.length() > 0) {
 			if (macros.containsKey(currentWord.toString())) {
+				Macro currentMacro = macros.get(currentWord.toString());
 				// this is a macro that has to be expanded
-				List<String> argList = new ArrayList<>();
+				List<String> argList = null;
 
 				if (c == '(') {
-					// the macro has arguments
-					StringBuilder currentArg = new StringBuilder();
+					if (currentMacro.expectsArguments()) {
+						argList = new ArrayList<>();
+						// the macro has arguments
+						StringBuilder currentArg = new StringBuilder();
 
-					// skip the already encountered opening brace
-					i++;
-					for (; i < content.length(); i++) {
-						// use same counter for iterating through the String
-						c = content.charAt(i);
+						// skip the already encountered opening brace
+						i++;
+						for (; i < content.length(); i++) {
+							// use same counter for iterating through the String
+							c = content.charAt(i);
 
-						if (c == ')') {
-							break;
+							if (c == ')') {
+								break;
+							}
+							if (c == ',') {
+								argList.add(currentArg.toString());
+								currentArg.setLength(0);
+							} else {
+								currentArg.append(c);
+							}
 						}
-						if (c == ',') {
-							argList.add(currentArg.toString());
-							currentArg.setLength(0);
-						} else {
-							currentArg.append(c);
-						}
+
+						argList.add(currentArg.toString());
+					} else {
+						// The macro doesn't expect arguments so the brace doesn't belong to the macro
+						// call
+						// "unread" the opening brace
+						i--;
 					}
-
-					argList.add(currentArg.toString());
 				}
 
 				// expand macro and append the expanded text
-				expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros));
+				expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros, false));
 				// The macro has been expanded so there is no need to add currentWord
 				currentWord.setLength(0);
 			}

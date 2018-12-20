@@ -1,2 +1,2 @@
 #define MACRO() test
-MACRO()
+MACRO

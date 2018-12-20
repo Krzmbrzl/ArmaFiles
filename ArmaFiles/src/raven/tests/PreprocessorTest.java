@@ -25,7 +25,9 @@ class PreprocessorTest {
 
 	@Test
 	public void fileTests() throws IOException {
-		int amountOfNormalTests = 16;
+		System.out.println("\n\nTesting valid files...\n");
+		
+		int amountOfNormalTests = 20;
 
 		for (int i = 1; i <= amountOfNormalTests; i++) {
 			String name = "Test" + (i < 10 ? "0" : "") + i + ".sqf";
@@ -36,9 +38,10 @@ class PreprocessorTest {
 
 	@Test
 	public void errorFileTests() throws IOException {
-		int amountOfErrorTests = 11;
+		System.out.println("\n\nTesting invalid files...\n");
+		int amountOfErrorTests = 17;
 
-		for (int i = 11; i <= amountOfErrorTests; i++) {
+		for (int i = 7; i <= amountOfErrorTests; i++) {
 			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
 
 			doTest(name);
