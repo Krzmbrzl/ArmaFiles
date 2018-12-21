@@ -9,23 +9,76 @@ import java.util.Map;
 
 import raven.misc.TextReader;
 
+
+/**
+ * A custom implementation of the Arma-preprocessor
+ * 
+ * @author Raven
+ *
+ */
 public class Preprocessor {
-
+	/**
+	 * The {@linkplain TextReader} used as an input source
+	 */
 	protected TextReader in;
+	/**
+	 * The {@linkplain OutputStream} the preprocessed content should be written to
+	 */
 	protected OutputStream out;
+	/**
+	 * A map of defined macros
+	 */
 	protected Map<String, Macro> macros;
+	/**
+	 * A flag indicating whether the input format uses windows-newlines (that is
+	 * \r\n instead if simply \n)
+	 */
 	protected boolean usesWindowsNewline;
+	/**
+	 * An option indicating how to deal with errors caused by misplaced whitespace
+	 */
 	protected PreprocessorWhitespaceHandling wsHandling;
+	/**
+	 * An option indicating whether the bugs of the Arma-preprocessor should be
+	 * reproduced
+	 */
+	protected PreprocessorBugReproduction bugReproduction;
 
-	public Preprocessor(PreprocessorWhitespaceHandling wsHandling) {
+
+	/**
+	 * Creates a new instance of this preprocessor
+	 * 
+	 * @param wsHandling
+	 *            How to deal with errors concerning misplaced whitespace
+	 * @param bugReproduction
+	 *            Whether or not to reproduce the bugs of the Arma-preprocessor
+	 * @see PreprocessorWhitespaceHandling
+	 * @see PreprocessorBugReproduction
+	 */
+	public Preprocessor(PreprocessorWhitespaceHandling wsHandling, PreprocessorBugReproduction bugReproduction) {
 		macros = new HashMap<>();
 		this.wsHandling = wsHandling;
+		this.bugReproduction = bugReproduction;
 	}
 
+	/**
+	 * Creates a new instance of this preprocessor that doesn't bail out on
+	 * misplaced whitespace and won't reproduce any Arma-bugs
+	 */
 	public Preprocessor() {
-		this(PreprocessorWhitespaceHandling.TOLERANT);
+		this(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.NONE);
 	}
 
+	/**
+	 * Preprocesses the given content
+	 * 
+	 * @param in
+	 *            The {@linkplain TextReader} that will be used as the content-input
+	 * @param out
+	 *            The {@linkplain OutputStream} the preprocessed content should be
+	 *            written to
+	 * @throws IOException
+	 */
 	public void preprocess(TextReader in, OutputStream out) throws IOException {
 		reset();
 
@@ -41,6 +94,12 @@ public class Preprocessor {
 		}
 	}
 
+	/**
+	 * Internal method for actually doing the whole preprocessing steps
+	 * 
+	 * @return Whether or not the preprocessing has been successful
+	 * @throws IOException
+	 */
 	protected boolean doPreprocess() throws IOException {
 		boolean ok = true;
 
@@ -159,6 +218,16 @@ public class Preprocessor {
 		return ok;
 	}
 
+	/**
+	 * A function that is being called whenever the given word might be a potential
+	 * macro. If it is, it will be expanded and its expanded replacement text
+	 * written to {@link #out}. If not, the word is written to {@link #out}
+	 * unchanged
+	 * 
+	 * @param word
+	 *            The word suspected of being a macro
+	 * @throws IOException
+	 */
 	protected void potentialMacro(String word) throws IOException {
 		if (macros.containsKey(word)) {
 			writeToOut(doExpandMacro(word));
@@ -168,6 +237,16 @@ public class Preprocessor {
 		}
 	}
 
+	/**
+	 * Tries to expand the the macro with the given name. If a macro with the given
+	 * name is found, potential arguments will be read from {@link #in}
+	 * 
+	 * @param macroName
+	 *            The name of the macro to expand
+	 * @return The expanded macro replacement text or the given macroName if it was
+	 *         found to not be a macro
+	 * @throws IOException
+	 */
 	protected String doExpandMacro(String macroName) throws IOException {
 		if (!macros.containsKey(macroName)) {
 			return macroName;
@@ -223,7 +302,8 @@ public class Preprocessor {
 
 		if (!macro.isValid() || (macro.expectsArguments() && arguments != null)
 				|| (!macro.expectsArguments() && arguments == null)) {
-			return macro.expand(arguments, macros, in.peek() == -1);
+			return macro.expand(arguments, macros, in.peek() == -1,
+					bugReproduction == PreprocessorBugReproduction.ARMA);
 		} else {
 			return macroName;
 		}
@@ -238,6 +318,7 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected void skipLineComment() throws IOException {
+		// TODO: ad option to keep comments
 		int c = readNext();
 
 		while (c != '\n' && c >= 0) {
@@ -245,6 +326,12 @@ public class Preprocessor {
 		}
 	}
 
+	/**
+	 * Consumes a block comment. This method assumes that the block comment has been
+	 * started already and thus is only searching for the end of it
+	 * 
+	 * @throws IOException
+	 */
 	protected void skipBlockComment() throws IOException {
 		int c = readNext();
 		boolean proceed = true;
@@ -265,14 +352,31 @@ public class Preprocessor {
 		in.unread(c);
 	}
 
+	/**
+	 * Handles an undefine-block after the #undef has already been consumed
+	 * 
+	 * @return Whether the undefine has been performed successfully
+	 * @throws IOException
+	 */
 	protected boolean undefBlock() throws IOException {
 		String macroName = in.readWord();
 
+		// TODO: warning about undefining a macro that doesn't even exist
+
 		macros.remove(macroName);
 
-		return false;
+		return true;
 	}
 
+	/**
+	 * Handles an ifdef or ifbdef block after the {@link #ifDefBlock(boolean)}or
+	 * #ifndef has already been consumed
+	 * 
+	 * @param hasToBeDefined
+	 *            Whether #ifdef has been used
+	 * @return Whether the block was processed successfully
+	 * @throws IOException
+	 */
 	protected boolean ifDefBlock(boolean hasToBeDefined) throws IOException {
 		String macroName = in.readWord();
 
@@ -330,6 +434,12 @@ public class Preprocessor {
 		return true;
 	}
 
+	/**
+	 * Processes a define-block after the #define has already been consujmed
+	 * 
+	 * @return Whether the define-block has been processed successfully
+	 * @throws IOException
+	 */
 	protected boolean defineBlock() throws IOException {
 		String macroName = in.readWord();
 		List<String> arguments = null;
@@ -439,13 +549,19 @@ public class Preprocessor {
 		return true;
 	}
 
+	/**
+	 * Handles an include-statement after the #inlude has already been consumed
+	 * 
+	 * @return Whether the inclusion has been performed successfully
+	 * @throws IOException
+	 */
 	protected boolean includeBlock() throws IOException {
 		String path = in.readString();
 
 		System.err.println("Including \"" + path + "\"");
 		// TODO
 
-		return true;
+		return false;
 	}
 
 	/**
@@ -489,10 +605,18 @@ public class Preprocessor {
 		in.unread(c);
 	}
 
+	/**
+	 * Gets a {@linkplain Map} of the macros that have been defined during the last
+	 * run of {@link #preprocess(TextReader, OutputStream)}
+	 */
 	public Map<String, Macro> getDefinedMacros() {
 		return new HashMap<>(macros);
 	}
 
+	/**
+	 * Resets this preprocessor to its initial state. This method gets automatically
+	 * called inside {@link #preprocess(TextReader, OutputStream)}
+	 */
 	public void reset() {
 		in = null;
 		out = null;
@@ -500,6 +624,13 @@ public class Preprocessor {
 		usesWindowsNewline = false;
 	}
 
+	/**
+	 * Internal method for writing a newline to the output stream. This method
+	 * automatically handles whether a \n or a \r\n has to be inserted to the output
+	 * stream
+	 * 
+	 * @throws IOException
+	 */
 	protected void writePreservedNewline() throws IOException {
 		if (usesWindowsNewline) {
 			out.write('\r');
@@ -507,6 +638,15 @@ public class Preprocessor {
 		out.write('\n');
 	}
 
+	/**
+	 * Writes the given content to {@link #out}. This method automatically checks
+	 * whether it has to insert \n or \r\n as newlines
+	 * 
+	 * @param content
+	 *            The content to be written to {@link #out}. It must not contain
+	 *            \r\n newlines
+	 * @throws IOException
+	 */
 	protected void writeToOut(String content) throws IOException {
 		if (usesWindowsNewline) {
 			content = content.replace("\n", "\r\n");
@@ -514,6 +654,14 @@ public class Preprocessor {
 		out.write(content.getBytes());
 	}
 
+	/**
+	 * Writes a single character to {@link #out}. If the character is \n it
+	 * automatically checks whether it has to write an \r beforehand.
+	 * 
+	 * @param c
+	 *            The character to write to {@link #out}
+	 * @throws IOException
+	 */
 	protected void writeToOut(char c) throws IOException {
 		if (c == '\n' && usesWindowsNewline) {
 			out.write('\r');
@@ -583,7 +731,26 @@ public class Preprocessor {
 		return expandedContent.toString();
 	}
 
-	static protected int tryExpand(String content, boolean foundHashtag, StringBuilder currentWord,
+	/**
+	 * Tries to expand the given content
+	 * 
+	 * @param content
+	 *            The content to be expanded
+	 * @param foundHashtag
+	 *            Whether or not a hashtag has been found before
+	 * @param currentWord
+	 *            The currently processed word
+	 * @param expandedContent
+	 *            The so-far expanded content
+	 * @param c
+	 *            The current character
+	 * @param i
+	 *            The current index of the "reader" in content
+	 * @param macros
+	 *            The {@linkplain Map} with all the macros that have been defined
+	 * @return The new index i of the "reader" inside the given content
+	 */
+	protected static int tryExpand(String content, boolean foundHashtag, StringBuilder currentWord,
 			StringBuilder expandedContent, char c, int i, Map<String, Macro> macros) {
 		if (foundHashtag) {
 			expandedContent.append("\"");
@@ -628,7 +795,9 @@ public class Preprocessor {
 				}
 
 				// expand macro and append the expanded text
-				expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros, false));
+				// As there can't be EOF after this macro the Arma-EOF-bug does not need to be
+				// reproduced
+				expandedContent.append(macros.get(currentWord.toString()).expand(argList, macros, false, false));
 				// The macro has been expanded so there is no need to add currentWord
 				currentWord.setLength(0);
 			}
@@ -653,5 +822,16 @@ public class Preprocessor {
 	 */
 	public void setWhitespaceHandling(PreprocessorWhitespaceHandling wsHandling) {
 		this.wsHandling = wsHandling;
+	}
+
+	/**
+	 * Determines whether bugs of the Arma-preprocessor should be reproduced
+	 * 
+	 * @param bugReproduction
+	 *            The respective option
+	 * @see PreprocessorBugReproduction
+	 */
+	public void setBugReprodiction(PreprocessorBugReproduction bugReproduction) {
+		this.bugReproduction = bugReproduction;
 	}
 }

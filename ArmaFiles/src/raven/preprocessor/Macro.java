@@ -83,12 +83,16 @@ public class Macro {
 	 * @param followedByEOF
 	 *            A flag indicating whether this macro call is being followed by the
 	 *            EOF
+	 * @param reproduceEOFBug
+	 *            A flag indicating whether the EOF bug of the Arma-preprocessor
+	 *            should be reproduced.
 	 * @return The fully expanded replacement text of this macro
 	 */
-	public String expand(List<String> arguments, Map<String, Macro> macros, boolean followedByEOF) {
+	public String expand(List<String> arguments, Map<String, Macro> macros, boolean followedByEOF,
+			boolean reproduceEOFBug) {
 		String replacementText = doExpand(arguments, macros);
 
-		if (!wasValidUsage() && followedByEOF) {
+		if (reproduceEOFBug && !wasValidUsage() && followedByEOF) {
 			// recreate buggy behavior of Arma when using invalid macros right before EOF
 			return replacementText + ")";
 		} else {

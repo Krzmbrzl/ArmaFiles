@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import raven.misc.TextReader;
 import raven.preprocessor.Preprocessor;
+import raven.preprocessor.PreprocessorBugReproduction;
 import raven.preprocessor.PreprocessorWhitespaceHandling;
 
 class PreprocessorTest {
@@ -20,13 +21,13 @@ class PreprocessorTest {
 
 	@BeforeAll
 	static void setUp() throws Exception {
-		prep = new Preprocessor(PreprocessorWhitespaceHandling.STRICT);
+		prep = new Preprocessor(PreprocessorWhitespaceHandling.STRICT, PreprocessorBugReproduction.ARMA);
 	}
 
 	@Test
 	public void fileTests() throws IOException {
 		System.out.println("\n\nTesting valid files...\n");
-		
+
 		int amountOfNormalTests = 20;
 
 		for (int i = 1; i <= amountOfNormalTests; i++) {
@@ -41,7 +42,7 @@ class PreprocessorTest {
 		System.out.println("\n\nTesting invalid files...\n");
 		int amountOfErrorTests = 17;
 
-		for (int i = 7; i <= amountOfErrorTests; i++) {
+		for (int i = 1; i <= amountOfErrorTests; i++) {
 			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
 
 			doTest(name);
@@ -61,7 +62,7 @@ class PreprocessorTest {
 	 */
 	protected void doTest(String name) throws IOException {
 		System.out.print("Testing \"" + name + "\"...");
-		
+
 		TextReader inReader = new TextReader(getResourceStream(name));
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
