@@ -447,6 +447,11 @@ public class Preprocessor {
 					if (command.equals("endif")) {
 						break;
 					}
+
+					if (command.equals("ifdef") || command.equals("ifndef")) {
+						notifyProblem("Nested if-structures are not supported!",
+								in.getPosition() - command.length() - 1, command.length() + 1, true);
+					}
 				} else {
 					if (inRelevantBlock) {
 						relevantBlock.append((char) c);
@@ -464,6 +469,7 @@ public class Preprocessor {
 
 		relevantBlock = relevantBlock.reverse();
 		for (int i = 0; i < relevantBlock.length(); i++) {
+			// read the relevant block back into the stream so that it will be preprocessed
 			in.unread((int) relevantBlock.charAt(i));
 		}
 
@@ -508,7 +514,6 @@ public class Preprocessor {
 				} else {
 					amount = skipWhitespace(false);
 					if (in.peek() != ')') {
-						int start = in.getPosition() - amount;
 						// this macro definition is invalid
 						valid = false;
 
@@ -611,7 +616,8 @@ public class Preprocessor {
 		if (macros.containsKey(macroName)) {
 			// warning that the macros has already been defined
 
-			notifyProblem("Overwriting existing macro \"" + macroName + "\"", nameStart, nameEnd - nameStart, false);
+			notifyProblem("Overwriting existing macro \"" + macroName + "\". You should #undef it first.", nameStart,
+					nameEnd - nameStart, false);
 
 			// continue as Arma will overwrite the macro
 		}
