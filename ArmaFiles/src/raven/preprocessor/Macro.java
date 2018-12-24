@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import raven.misc.IProblemListener;
+
 /**
  * A class representing a macro as used by {@linkplain Preprocessor}. It can be
  * expanded in order to get its replacement text
@@ -33,9 +35,10 @@ public class Macro {
 	 */
 	protected boolean isValid;
 	/**
-	 * A flag indicating whether this macro has been used properly the last time
+	 * The error message describing the problem during expansion or
+	 * <code>null</code> if there was none
 	 */
-	protected boolean validUse;
+	protected String errorMessage;
 
 	/**
 	 * Creates a new macro
@@ -107,12 +110,15 @@ public class Macro {
 	 *            The arguments supplied for the replacement inside the macro body
 	 * @param macros
 	 *            The {@linkplain Map} containing all currently defined macros
+	 * @param The
+	 *            {@linkplain IProblemListener} to report problems to
 	 * @return The fully expanded replacement text of this macro
 	 */
 	protected String doExpand(List<String> arguments, Map<String, Macro> macros) {
-		validUse = isValid;
+		errorMessage = null;
 
-		if (!validUse) {
+		if (!isValid) {
+			errorMessage = "Trying to use an invalidly defined macro. This will result in an empty replacement text!";
 			// an invalidly defined macro will always return an empty String
 			return "";
 		}
@@ -123,15 +129,18 @@ public class Macro {
 					// this is the same as supplying no argument at all -> clear list and continue
 					arguments.clear();
 				} else {
-					// if the argument count doesn't match up -> return an empty String
-					validUse = false;
-					// TODO: report error about wrong argument count
+					// if the argument count doesn't match up -> return an empty String + report
+					// error
+					errorMessage = "Expected " + argumentNames.size() + " arguments but got " + arguments.size();
 					return "";
 				}
 			}
 		} else {
 			if (arguments != null) {
-				throw new IllegalArgumentException("The macro \"" + name + "\" must not be called with arguments!");
+				// error about invalid usage
+				errorMessage = "The macro \"" + name + "\" must not be called with arguments!";
+
+				return "";
 			}
 		}
 
@@ -211,7 +220,15 @@ public class Macro {
 	 * valid expansion
 	 */
 	public boolean wasValidUsage() {
-		return validUse;
+		return errorMessage == null;
+	}
+
+	/**
+	 * Gets the error message describing what went wrong during expansion or
+	 * <code>null</code> if there were no errors
+	 */
+	public String getErrorMessage() {
+		return errorMessage;
 	}
 
 	/**

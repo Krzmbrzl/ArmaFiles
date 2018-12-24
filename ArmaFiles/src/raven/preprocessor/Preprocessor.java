@@ -3,10 +3,12 @@ package raven.preprocessor;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import raven.misc.IProblemListener;
 import raven.misc.TextReader;
 
 
@@ -43,6 +45,11 @@ public class Preprocessor {
 	 * reproduced
 	 */
 	protected PreprocessorBugReproduction bugReproduction;
+	/**
+	 * A collection of problem listeners to notify about any problems during
+	 * preprocessing
+	 */
+	protected Collection<IProblemListener> problemListeners;
 
 
 	/**
@@ -59,6 +66,7 @@ public class Preprocessor {
 		macros = new HashMap<>();
 		this.wsHandling = wsHandling;
 		this.bugReproduction = bugReproduction;
+		problemListeners = new ArrayList<>();
 	}
 
 	/**
@@ -89,8 +97,9 @@ public class Preprocessor {
 		try {
 			doPreprocess();
 		} catch (Exception e) {
-			// TODO: create error with the respective exception-message
 			e.printStackTrace();
+
+			notifyProblem("Internal error during preprocessing: " + e.getMessage(), 0, 1, true);
 		}
 	}
 
@@ -134,12 +143,16 @@ public class Preprocessor {
 					c = readNext();
 
 					if (c == '#') {
+						int preprocecessorStartIndex = in.getPosition();
+
 						if (Character.isWhitespace(in.peek())) {
 							if (wsHandling == PreprocessorWhitespaceHandling.STRICT) {
 								throw new IllegalArgumentException("Whitespace in invalid context!");
 							} else {
-								// TODO: error about WS
-								skipWhitespace(false);
+								// skip WS but issue an error about it
+								int start = in.getPosition();
+								int length = skipWhitespace(false);
+								notifyProblem("Invalid whitespace characters", start, length, true);
 							}
 						}
 
@@ -165,11 +178,17 @@ public class Preprocessor {
 							break;
 						case "endif":
 						case "else":
-							// TODO: error about orphaned #else or #endif
+							// error about orphaned #else or #endif
+							notifyProblem("Orphaned #" + command, preprocecessorStartIndex,
+									in.getPosition() - preprocecessorStartIndex, true);
+
 							ok = false;
 							break;
 						default:
-							// TODO: error about unrecognized preprocessor command
+							// error about unrecognized preprocessor command
+							notifyProblem("Unknown preprocessor command \"#" + command + "\"", preprocecessorStartIndex,
+									in.getPosition() - preprocecessorStartIndex, true);
+
 							ok = false;
 							break;
 						}
@@ -252,6 +271,8 @@ public class Preprocessor {
 			return macroName;
 		}
 
+		int start = in.getPosition() - macroName.length();
+
 		Macro macro = macros.get(macroName);
 
 		List<String> arguments = null;
@@ -286,6 +307,7 @@ public class Preprocessor {
 			}
 
 			if (c != ')') {
+				notifyProblem("Missing closing ')'", in.getPosition() - 1, 1, true);
 				// there's something wrong
 				if (c == -1) {
 					// If the macro isn't closed before the EOF Arma pretends as if the macro was
@@ -300,10 +322,18 @@ public class Preprocessor {
 			}
 		}
 
+		int end = in.getPosition();
+
 		if (!macro.isValid() || (macro.expectsArguments() && arguments != null)
 				|| (!macro.expectsArguments() && arguments == null)) {
-			return macro.expand(arguments, macros, in.peek() == -1,
+			String replacementText = macro.expand(arguments, macros, in.peek() == -1,
 					bugReproduction == PreprocessorBugReproduction.ARMA);
+
+			if (!macro.wasValidUsage()) {
+				notifyProblem(macro.getErrorMessage(), start, end - start, true);
+			}
+
+			return replacementText;
 		} else {
 			return macroName;
 		}
@@ -318,7 +348,7 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected void skipLineComment() throws IOException {
-		// TODO: ad option to keep comments
+		// TODO: add option to keep comments
 		int c = readNext();
 
 		while (c != '\n' && c >= 0) {
@@ -359,11 +389,17 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected boolean undefBlock() throws IOException {
+		int start = in.getPosition();
+
 		String macroName = in.readWord();
 
-		// TODO: warning about undefining a macro that doesn't even exist
+		Object ret = macros.remove(macroName);
 
-		macros.remove(macroName);
+		if (ret == null) {
+			// warning about undefining a macro that doesn't even exist
+			notifyProblem("Trying to undef non-existing macro \"" + macroName + "\"", start, in.getPosition() - start,
+					false);
+		}
 
 		return true;
 	}
@@ -441,17 +477,27 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected boolean defineBlock() throws IOException {
+		int nameStart = in.getPosition();
 		String macroName = in.readWord();
+		int nameEnd = in.getPosition();
 		List<String> arguments = null;
 		boolean valid = true;
 
 		if (in.peek() == '(') {
+			int argStart = in.getPosition();
+
 			arguments = new ArrayList<>();
 			// parse arguments
 			in.expect('(');
 
 			// skip WS as leading WS gets removed by Arma
-			skipWhitespace(false);
+			int amount = skipWhitespace(false);
+
+			if (amount != 0) {
+				// warn about illegal WS
+				notifyProblem("Illegal whitespace at beginning of argument list", in.getPosition() - amount, amount,
+						false);
+			}
 
 			String argumentName = in.readWord();
 
@@ -460,9 +506,9 @@ public class Preprocessor {
 					// add valid argument
 					arguments.add(argumentName);
 				} else {
-					skipWhitespace(false);
+					amount = skipWhitespace(false);
 					if (in.peek() != ')') {
-						// TODO: Error about invalid macro definition
+						int start = in.getPosition() - amount;
 						// this macro definition is invalid
 						valid = false;
 
@@ -474,21 +520,43 @@ public class Preprocessor {
 
 						// unread last character
 						in.unread(c);
+
+						// Error about invalid macro definition
+						if (amount != 0) {
+							// error about illegal WS inside argument name
+							notifyProblem(
+									"Illegal whitespace in argument name. This will result in an invalid macro definition!",
+									in.getPosition() - amount, amount, true);
+						} else {
+							// apparently something else is broken
+							notifyProblem("Invalid macro-parameter definition", argStart,
+									in.getPosition() - argStart + (c == ')' ? 1 : 0), true);
+						}
 					} else {
 						// The problem was just some trailing space which gets ignored anyways -> add
 						// the argument anyways
 						arguments.add(argumentName);
+
+						// warn about illegal WS
+						notifyProblem("Illegal whitespace at end of argument list", in.getPosition() - amount, amount,
+								false);
 					}
 				}
 
 				if (in.peek() == ',') {
-					// there's another macro
+					// there's another argument
 					in.expect(',');
 					argumentName = in.readWord();
 
 					if (argumentName != null && argumentName.isEmpty()) {
 						if (Character.isWhitespace(in.peek())) {
-							skipWhitespace(false);
+							amount = skipWhitespace(false);
+
+							// error about illegal WS inside argument name
+							notifyProblem(
+									"Illegal whitespace in argument name. This will result in an invalid macro definition!",
+									in.getPosition() - amount, amount, true);
+
 							valid = false;
 						}
 					}
@@ -499,13 +567,18 @@ public class Preprocessor {
 			}
 
 			// skip WS as this gets trimmed away from the macro argument by Arma
-			skipWhitespace(false);
+			amount = skipWhitespace(false);
+
+			if (amount != 0) {
+				// warn about illegal WS
+				notifyProblem("Illegal whitespace at end of argument list", in.getPosition() - amount, amount, false);
+			}
 
 			if (in.peek() == ')') {
 				in.expect(')');
 			} else {
-				// TODO: error about unclosed macro definition
-				System.err.println("Unlosed Macro definition!");
+				// error about unclosed macro definition
+				notifyProblem("Missing closing ')'", in.getPosition() - 1, 1, true);
 			}
 		}
 
@@ -536,10 +609,11 @@ public class Preprocessor {
 		in.unread(c);
 
 		if (macros.containsKey(macroName)) {
-			// TODO: error that the macros has already been defined with the given amount of
-			// arguments
+			// warning that the macros has already been defined
 
-			return false;
+			notifyProblem("Overwriting existing macro \"" + macroName + "\"", nameStart, nameEnd - nameStart, false);
+
+			// continue as Arma will overwrite the macro
 		}
 
 		Macro macro = new Macro(macroName, arguments, macroBody.toString(), valid);
@@ -588,11 +662,14 @@ public class Preprocessor {
 	 * @param writeAll
 	 *            Indicates whether all WS should get written to {@link #out}
 	 *            instead of NL only
+	 * @return the amount of skipped WS
 	 * 
 	 * @throws IOException
 	 */
-	protected void skipWhitespace(boolean writeAll) throws IOException {
+	protected int skipWhitespace(boolean writeAll) throws IOException {
 		int c = readNext();
+
+		int amount = 0;
 
 		while (Character.isWhitespace(c)) {
 			if (writeAll || c == '\n') {
@@ -600,9 +677,12 @@ public class Preprocessor {
 			}
 
 			c = readNext();
+			amount++;
 		}
 
 		in.unread(c);
+
+		return amount;
 	}
 
 	/**
@@ -833,5 +913,50 @@ public class Preprocessor {
 	 */
 	public void setBugReprodiction(PreprocessorBugReproduction bugReproduction) {
 		this.bugReproduction = bugReproduction;
+	}
+
+	/**
+	 * Notifies all registered {@linkplain IProblemListener}s about the given
+	 * problem
+	 * 
+	 * @param message
+	 *            The problem message
+	 * @param start
+	 *            The start offset of the problem area
+	 * @param length
+	 *            The length of the problem area
+	 * @param isError
+	 *            Whether the problem is an error (if <code>false</code> it is
+	 *            considered a warning)
+	 */
+	protected void notifyProblem(String message, int start, int length, boolean isError) {
+		// TODO: maybe transform index
+		for (IProblemListener currentListener : problemListeners) {
+			if (isError) {
+				currentListener.error(message, start, length);
+			} else {
+				currentListener.warning(message, start, length);
+			}
+		}
+	}
+
+	/**
+	 * Adds the given {@linkplain IProblemListener} to this Preprocessor
+	 * 
+	 * @param listener
+	 *            The listener to add
+	 */
+	public void addProblemListener(IProblemListener listener) {
+		problemListeners.add(listener);
+	}
+
+	/**
+	 * Removes the given {@linkplain IProblemListener} to this Preprocessor
+	 * 
+	 * @param listener
+	 *            The listener to remove
+	 */
+	public void removeProblemListener(IProblemListener listener) {
+		problemListeners.remove(listener);
 	}
 }

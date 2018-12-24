@@ -10,6 +10,7 @@ import java.util.Scanner;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import raven.misc.ConsoleProblemListener;
 import raven.misc.TextReader;
 import raven.preprocessor.Preprocessor;
 import raven.preprocessor.PreprocessorBugReproduction;
@@ -21,7 +22,8 @@ class PreprocessorTest {
 
 	@BeforeAll
 	static void setUp() throws Exception {
-		prep = new Preprocessor(PreprocessorWhitespaceHandling.STRICT, PreprocessorBugReproduction.ARMA);
+		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA);
+		prep.addProblemListener(new ConsoleProblemListener());
 	}
 
 	@Test
