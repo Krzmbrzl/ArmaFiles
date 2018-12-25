@@ -2,6 +2,7 @@ package raven.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +15,7 @@ import raven.misc.ConsoleProblemListener;
 import raven.misc.TextReader;
 import raven.preprocessor.Preprocessor;
 import raven.preprocessor.PreprocessorBugReproduction;
+import raven.preprocessor.PreprocessorCommentHandling;
 import raven.preprocessor.PreprocessorWhitespaceHandling;
 
 class PreprocessorTest {
@@ -22,7 +24,8 @@ class PreprocessorTest {
 
 	@BeforeAll
 	static void setUp() throws Exception {
-		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA);
+		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA,
+				PreprocessorCommentHandling.REMOVE);
 		prep.addProblemListener(new ConsoleProblemListener());
 	}
 
@@ -35,7 +38,7 @@ class PreprocessorTest {
 		for (int i = 1; i <= amountOfNormalTests; i++) {
 			String name = "Test" + (i < 10 ? "0" : "") + i + ".sqf";
 
-			doTest(name);
+			fileTest(name);
 		}
 	}
 
@@ -47,8 +50,43 @@ class PreprocessorTest {
 		for (int i = 1; i <= amountOfErrorTests; i++) {
 			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
 
-			doTest(name);
+			fileTest(name);
 		}
+	}
+
+	@Test
+	public void commentTest() throws IOException {
+		String input = "// I am a test\nBLUBB/*\nAnd so\nam I*/BLA";
+		TextReader inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
+		ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
+		prep.preprocess(inReader, outStream);
+		assertEquals(input, outStream.toString());
+		inReader.close();
+
+		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
+		outStream.reset();
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP_BLOCK);
+		prep.preprocess(inReader, outStream);
+		assertEquals("BLUBB/*\nAnd so\nam I*/BLA", outStream.toString());
+		inReader.close();
+		
+		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
+		outStream.reset();
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP_INLINE);
+		prep.preprocess(inReader, outStream);
+		assertEquals("// I am a test\nBLUBB\n\nBLA", outStream.toString());
+		inReader.close();
+		
+		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
+		outStream.reset();
+		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
+		prep.preprocess(inReader, outStream);
+		assertEquals("BLUBB\n\nBLA", outStream.toString());
+		inReader.close();
+		
+		outStream.close();
 	}
 
 	/**
@@ -62,7 +100,7 @@ class PreprocessorTest {
 	 *            The name of the file to test
 	 * @throws IOException
 	 */
-	protected void doTest(String name) throws IOException {
+	protected void fileTest(String name) throws IOException {
 		System.out.print("Testing \"" + name + "\"...");
 
 		TextReader inReader = new TextReader(getResourceStream(name));

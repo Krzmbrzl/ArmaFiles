@@ -46,6 +46,10 @@ public class Preprocessor {
 	 */
 	protected PreprocessorBugReproduction bugReproduction;
 	/**
+	 * An option indicating how comments should be dealt with
+	 */
+	protected PreprocessorCommentHandling commentHandling;
+	/**
 	 * A collection of problem listeners to notify about any problems during
 	 * preprocessing
 	 */
@@ -62,10 +66,12 @@ public class Preprocessor {
 	 * @see PreprocessorWhitespaceHandling
 	 * @see PreprocessorBugReproduction
 	 */
-	public Preprocessor(PreprocessorWhitespaceHandling wsHandling, PreprocessorBugReproduction bugReproduction) {
+	public Preprocessor(PreprocessorWhitespaceHandling wsHandling, PreprocessorBugReproduction bugReproduction,
+			PreprocessorCommentHandling commentHandling) {
 		macros = new HashMap<>();
 		this.wsHandling = wsHandling;
 		this.bugReproduction = bugReproduction;
+		this.commentHandling = commentHandling;
 		problemListeners = new ArrayList<>();
 	}
 
@@ -74,7 +80,8 @@ public class Preprocessor {
 	 * misplaced whitespace and won't reproduce any Arma-bugs
 	 */
 	public Preprocessor() {
-		this(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.NONE);
+		this(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.NONE,
+				PreprocessorCommentHandling.REMOVE);
 	}
 
 	/**
@@ -96,6 +103,10 @@ public class Preprocessor {
 		// prevent thread from terminating because of some error during preprocessing
 		try {
 			doPreprocess();
+		} catch (PreprocessorException e) {
+			// add error about preprocessing abortion
+			notifyProblem("Aborted preprocessing. Reason: " + e.getMessage(), Math.max(0, in.getPosition() - 1),
+					Math.min(1, in.getPosition()), true);
 		} catch (Exception e) {
 			e.printStackTrace();
 
@@ -108,8 +119,9 @@ public class Preprocessor {
 	 * 
 	 * @return Whether or not the preprocessing has been successful
 	 * @throws IOException
+	 * @throws PreprocessorException
 	 */
-	protected boolean doPreprocess() throws IOException {
+	protected boolean doPreprocess() throws IOException, PreprocessorException {
 		boolean ok = true;
 
 		int c = readNext();
@@ -146,13 +158,13 @@ public class Preprocessor {
 						int preprocecessorStartIndex = in.getPosition();
 
 						if (Character.isWhitespace(in.peek())) {
+							int start = in.getPosition();
+							int length = skipWhitespace(false);
+							notifyProblem("Invalid whitespace characters", start, length, true);
+
 							if (wsHandling == PreprocessorWhitespaceHandling.STRICT) {
-								throw new IllegalArgumentException("Whitespace in invalid context!");
-							} else {
-								// skip WS but issue an error about it
-								int start = in.getPosition();
-								int length = skipWhitespace(false);
-								notifyProblem("Invalid whitespace characters", start, length, true);
+								// The preprocessor was instructed to error out in this case
+								throw new PreprocessorException("Whitespace in invalid context!");
 							}
 						}
 
@@ -348,11 +360,27 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected void skipLineComment() throws IOException {
-		// TODO: add option to keep comments
+		boolean keepComment = commentHandling == PreprocessorCommentHandling.KEEP
+				|| commentHandling == PreprocessorCommentHandling.KEEP_INLINE;
+
+		if (keepComment) {
+			// re-add the leading double slashes
+			writeToOut("//");
+		}
+
+
 		int c = readNext();
 
 		while (c != '\n' && c >= 0) {
+			if (keepComment) {
+				writeToOut((char) c);
+			}
+
 			c = readNext();
+		}
+
+		if (keepComment && c == '\n') {
+			writePreservedNewline();
 		}
 	}
 
@@ -363,6 +391,14 @@ public class Preprocessor {
 	 * @throws IOException
 	 */
 	protected void skipBlockComment() throws IOException {
+		boolean keepComment = commentHandling == PreprocessorCommentHandling.KEEP
+				|| commentHandling == PreprocessorCommentHandling.KEEP_BLOCK;
+
+		if (keepComment) {
+			// re-add the leading /*
+			writeToOut("/*");
+		}
+
 		int c = readNext();
 		boolean proceed = true;
 		boolean foundStar = false;
@@ -372,8 +408,13 @@ public class Preprocessor {
 
 			foundStar = c == '*';
 
-			if (c == '\n') {
-				writePreservedNewline();
+			if (keepComment) {
+				writeToOut((char) c);
+			} else {
+				// NLs are preserved in any case
+				if (c == '\n') {
+					writePreservedNewline();
+				}
 			}
 
 			c = readNext();
@@ -412,8 +453,9 @@ public class Preprocessor {
 	 *            Whether #ifdef has been used
 	 * @return Whether the block was processed successfully
 	 * @throws IOException
+	 * @throws PreprocessorException
 	 */
-	protected boolean ifDefBlock(boolean hasToBeDefined) throws IOException {
+	protected boolean ifDefBlock(boolean hasToBeDefined) throws IOException, PreprocessorException {
 		String macroName = in.readWord();
 
 		boolean firstIfBlock = hasToBeDefined == macros.containsKey(macroName);
@@ -451,6 +493,8 @@ public class Preprocessor {
 					if (command.equals("ifdef") || command.equals("ifndef")) {
 						notifyProblem("Nested if-structures are not supported!",
 								in.getPosition() - command.length() - 1, command.length() + 1, true);
+
+						throw new PreprocessorException("Nested if(n)def");
 					}
 				} else {
 					if (inRelevantBlock) {
@@ -917,8 +961,19 @@ public class Preprocessor {
 	 *            The respective option
 	 * @see PreprocessorBugReproduction
 	 */
-	public void setBugReprodiction(PreprocessorBugReproduction bugReproduction) {
+	public void setBugReproduction(PreprocessorBugReproduction bugReproduction) {
 		this.bugReproduction = bugReproduction;
+	}
+
+	/**
+	 * Determines how comments should be dealt with
+	 * 
+	 * @param commentHandling
+	 *            The respective option
+	 * @see PreprocessorCommentHandling
+	 */
+	public void setCommentHandling(PreprocessorCommentHandling commentHandling) {
+		this.commentHandling = commentHandling;
 	}
 
 	/**
