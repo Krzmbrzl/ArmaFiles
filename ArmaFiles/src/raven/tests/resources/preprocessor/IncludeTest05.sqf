@@ -1,0 +1,1 @@
+#include ".\subfolder\SubfolderIncludeResource.sqf"

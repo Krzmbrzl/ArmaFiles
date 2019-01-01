@@ -1,5 +1,6 @@
 package raven.tests;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.ByteArrayInputStream;
@@ -8,12 +9,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import raven.misc.ConsoleProblemListener;
+import raven.misc.IProblemListener;
 import raven.misc.TextReader;
 import raven.preprocessor.DefaultPreprocessorPathResolver;
 import raven.preprocessor.Preprocessor;
@@ -23,19 +27,89 @@ import raven.preprocessor.PreprocessorWhitespaceHandling;
 
 class PreprocessorTest {
 
+	static class Problem {
+		public String message;
+		public int start;
+		public int length;
+		public boolean isError;
+
+		public Problem(String message, int start, int length, boolean isError) {
+			this.message = message;
+			this.start = start;
+			this.length = length;
+			this.isError = isError;
+		}
+	}
+
+	/**
+	 * A little helper class that makes sure errors and warnings only occur in the
+	 * expected test cases and if they occur it will keep track of them
+	 * 
+	 * @author Raven
+	 *
+	 */
+	static class ProblemGuard implements IProblemListener {
+
+		private boolean errorsAllowed;
+		private boolean warningsAllowed;
+
+		public List<Problem> problems;
+
+		public ProblemGuard() {
+			problems = new ArrayList<>();
+		}
+
+		@Override
+		public void error(String msg, int start, int length) {
+			assertTrue("Got unexpected error: " + msg, errorsAllowed);
+			problems.add(new Problem(msg, start, length, true));
+		}
+
+		@Override
+		public void warning(String msg, int start, int length) {
+			assertTrue("Got unexpected warning: " + msg, warningsAllowed);
+			problems.add(new Problem(msg, start, length, false));
+		}
+
+		public void allowErrors(boolean allowed) {
+			this.errorsAllowed = allowed;
+		}
+
+		public void allowWarnings(boolean allowed) {
+			this.warningsAllowed = allowed;
+		}
+
+		public void allowProblems(boolean allowed) {
+			this.errorsAllowed = allowed;
+			this.warningsAllowed = allowed;
+		}
+
+		public void reset() {
+			problems.clear();
+		}
+
+	}
+
 	static Preprocessor prep;
+	static ProblemGuard guard;
 
 	@BeforeAll
 	static void setUp() throws Exception {
 		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA,
 				PreprocessorCommentHandling.REMOVE, new DefaultPreprocessorPathResolver(Paths.get("/")));
+		
 		prep.addProblemListener(new ConsoleProblemListener());
+
+		guard = new ProblemGuard();
+		prep.addProblemListener(guard);
 	}
 
 	@Test
 	public void fileTests() throws IOException {
+		guard.allowProblems(false);
+		guard.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
-		
+
 		System.out.println("\n\nTesting valid files...\n");
 
 		int amountOfNormalTests = 21;
@@ -49,8 +123,10 @@ class PreprocessorTest {
 
 	@Test
 	public void errorFileTests() throws IOException {
+		guard.allowProblems(true);
+		guard.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
-		
+
 		System.out.println("\n\nTesting invalid files...\n");
 		int amountOfErrorTests = 17;
 
@@ -63,6 +139,9 @@ class PreprocessorTest {
 
 	@Test
 	public void commentTest() throws IOException {
+		guard.allowProblems(false);
+		guard.reset();
+
 		String input = "// I am a test\nBLUBB/*\nAnd so\nam I*/BLA";
 		TextReader inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
 		ByteArrayOutputStream outStream = new ByteArrayOutputStream();
@@ -76,7 +155,7 @@ class PreprocessorTest {
 		outStream.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.KEEP_BLOCK);
 		prep.preprocess(inReader, outStream, getRoot());
-		assertEquals("BLUBB/*\nAnd so\nam I*/BLA", outStream.toString());
+		assertEquals("\nBLUBB/*\nAnd so\nam I*/BLA", outStream.toString());
 		inReader.close();
 
 		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
@@ -90,7 +169,7 @@ class PreprocessorTest {
 		outStream.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
 		prep.preprocess(inReader, outStream, getRoot());
-		assertEquals("BLUBB\n\nBLA", outStream.toString());
+		assertEquals("\nBLUBB\n\nBLA", outStream.toString());
 		inReader.close();
 
 		outStream.close();
@@ -98,12 +177,14 @@ class PreprocessorTest {
 
 	@Test
 	public void includeTest() throws IOException {
+		guard.allowProblems(false);
+		guard.reset();
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
+
 		System.out.println("Testing include statements\n");
-		int amountOfTests = 3;
+		int amountOfTests = 6;
 
 		String root = getRoot();
-		
-		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		for (int i = 1; i <= amountOfTests; i++) {
@@ -125,7 +206,23 @@ class PreprocessorTest {
 			System.out.println(" - passed");
 		}
 
-		out.close();
+		// test sub-folders
+		String testName = "subfolder" + File.separator + "SubfolderIncludeTest.sqf";
+		String resultName = "IncludeResult02.sqf";
+
+		System.out.print("Testing " + testName);
+
+		prep.preprocess(new TextReader(getResourceStream(testName)), out,
+				root + File.separator + "subfolder" + File.separator);
+
+		String expected = convertStreamToString(getResourceStream(resultName));
+		String actual = out.toString();
+
+		assertEquals(expected, actual);
+
+		out.reset();
+
+		System.out.println(" - passed");
 	}
 
 	/**

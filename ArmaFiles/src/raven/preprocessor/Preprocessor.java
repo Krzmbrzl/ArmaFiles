@@ -146,7 +146,6 @@ public class Preprocessor {
 
 		int c = readNext();
 		boolean beginOfInput = true;
-		boolean commentConsumedNL = false;
 
 		while (c >= 0) {
 			if (c == '"') {
@@ -159,15 +158,10 @@ public class Preprocessor {
 				if (str != null) {
 					writeToOut(("\"" + str + "\""));
 				}
-				
-				// reset
-				commentConsumedNL = false;
 			} else {
 				boolean newLine = c == '\n';
 
-				if (newLine | beginOfInput | commentConsumedNL) {
-					// reset
-					commentConsumedNL = false;
+				if (newLine | beginOfInput) {
 					while (c == '\n') {
 						writeToOut((char) c);
 
@@ -240,27 +234,15 @@ public class Preprocessor {
 						// block-comment
 						readNext();
 						skipBlockComment();
-						
-						// reset
-						commentConsumedNL = false;
 					} else if (in.peek() == '/') {
 						// line comment
 						readNext();
 						skipLineComment();
-						
-						// the trailing NL is being consumed by the line-comment
-						commentConsumedNL = true;
 					} else {
 						// it's not a comment
 						writeToOut((char) c);
-						
-						// reset
-						commentConsumedNL = false;
 					}
 				} else {
-					// reset
-					commentConsumedNL = false;
-					
 					if (Character.isWhitespace(c)) {
 						writeToOut((char) c);
 					} else {
@@ -417,9 +399,7 @@ public class Preprocessor {
 			c = readNext();
 		}
 
-		if (keepComment && c == '\n') {
-			writePreservedNewline();
-		}
+		in.unread(c);
 	}
 
 	/**
@@ -732,16 +712,18 @@ public class Preprocessor {
 
 				// change input source + root
 				this.in = includeIn;
-				pathResolver.setCurrentRoot(pathResolver.resolve(path));
+				pathResolver.setCurrentRoot(pathResolver.resolve(path).getParent());
 
 				// preprocess the included file
+				boolean success;
 				try {
-					if (!doPreprocess()) {
-						throw new PreprocessorException("Failed at including \"" + path + "\"");
-					}
+					success = doPreprocess();
 				} catch (PreprocessorException e) {
 					// rethrow but blame it on the inclusion
 					throw new PreprocessorException("Failed at including \"" + path + "\" - " + e.getMessage());
+				}
+				if(!success) {
+					throw new PreprocessorException("Failed at including \"" + path + "\"");
 				}
 
 				// restore to default input source + root

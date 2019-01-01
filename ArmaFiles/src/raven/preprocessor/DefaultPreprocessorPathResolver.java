@@ -27,6 +27,9 @@ public class DefaultPreprocessorPathResolver implements IPreprocessorPathResolve
 		if (path.contains("/")) {
 			return null;
 		}
+		
+		// make sure backslashes are interpreted as file separator
+		path = path.replace("\\", File.separator);
 
 		return currentRoot.resolve(path);
 	}
