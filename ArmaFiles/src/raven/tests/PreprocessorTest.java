@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.util.Scanner;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import raven.misc.ConsoleProblemListener;
 import raven.misc.TextReader;
+import raven.preprocessor.DefaultPreprocessorPathResolver;
 import raven.preprocessor.Preprocessor;
 import raven.preprocessor.PreprocessorBugReproduction;
 import raven.preprocessor.PreprocessorCommentHandling;
@@ -25,15 +28,17 @@ class PreprocessorTest {
 	@BeforeAll
 	static void setUp() throws Exception {
 		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA,
-				PreprocessorCommentHandling.REMOVE);
+				PreprocessorCommentHandling.REMOVE, new DefaultPreprocessorPathResolver(Paths.get("/")));
 		prep.addProblemListener(new ConsoleProblemListener());
 	}
 
 	@Test
 	public void fileTests() throws IOException {
+		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
+		
 		System.out.println("\n\nTesting valid files...\n");
 
-		int amountOfNormalTests = 20;
+		int amountOfNormalTests = 21;
 
 		for (int i = 1; i <= amountOfNormalTests; i++) {
 			String name = "Test" + (i < 10 ? "0" : "") + i + ".sqf";
@@ -44,6 +49,8 @@ class PreprocessorTest {
 
 	@Test
 	public void errorFileTests() throws IOException {
+		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
+		
 		System.out.println("\n\nTesting invalid files...\n");
 		int amountOfErrorTests = 17;
 
@@ -61,32 +68,64 @@ class PreprocessorTest {
 		ByteArrayOutputStream outStream = new ByteArrayOutputStream();
 
 		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
-		prep.preprocess(inReader, outStream);
+		prep.preprocess(inReader, outStream, getRoot());
 		assertEquals(input, outStream.toString());
 		inReader.close();
 
 		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
 		outStream.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.KEEP_BLOCK);
-		prep.preprocess(inReader, outStream);
+		prep.preprocess(inReader, outStream, getRoot());
 		assertEquals("BLUBB/*\nAnd so\nam I*/BLA", outStream.toString());
 		inReader.close();
-		
+
 		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
 		outStream.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.KEEP_INLINE);
-		prep.preprocess(inReader, outStream);
+		prep.preprocess(inReader, outStream, getRoot());
 		assertEquals("// I am a test\nBLUBB\n\nBLA", outStream.toString());
 		inReader.close();
-		
+
 		inReader = new TextReader(new ByteArrayInputStream(input.getBytes()));
 		outStream.reset();
 		prep.setCommentHandling(PreprocessorCommentHandling.REMOVE);
-		prep.preprocess(inReader, outStream);
+		prep.preprocess(inReader, outStream, getRoot());
 		assertEquals("BLUBB\n\nBLA", outStream.toString());
 		inReader.close();
-		
+
 		outStream.close();
+	}
+
+	@Test
+	public void includeTest() throws IOException {
+		System.out.println("Testing include statements\n");
+		int amountOfTests = 3;
+
+		String root = getRoot();
+		
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		for (int i = 1; i <= amountOfTests; i++) {
+			String number = (i < 10 ? "0" : "") + String.valueOf(i);
+			String testName = "IncludeTest" + number + ".sqf";
+			String resultName = "IncludeResult" + number + ".sqf";
+
+			System.out.print("Testing " + testName);
+
+			prep.preprocess(new TextReader(getResourceStream(testName)), out, root);
+
+			String expected = convertStreamToString(getResourceStream(resultName));
+			String actual = out.toString();
+
+			assertEquals(expected, actual);
+
+			out.reset();
+
+			System.out.println(" - passed");
+		}
+
+		out.close();
 	}
 
 	/**
@@ -107,7 +146,7 @@ class PreprocessorTest {
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-		prep.preprocess(inReader, out);
+		prep.preprocess(inReader, out, getRoot());
 
 		inReader.close();
 
@@ -119,14 +158,21 @@ class PreprocessorTest {
 	}
 
 	static InputStream getResourceStream(String name) {
-		InputStream in = PreprocessorTest.class.getClassLoader().getResourceAsStream(
-				PreprocessorTest.class.getPackage().getName().replace(".", "/") + "/resources/preprocessor/" + name);
+		InputStream in = PreprocessorTest.class.getClassLoader()
+				.getResourceAsStream(PreprocessorTest.class.getPackage().getName().replace(".", File.separator)
+						+ File.separator + "resources" + File.separator + "preprocessor" + File.separator + name);
 
 		if (in == null) {
 			throw new IllegalArgumentException("Can't find resource " + name);
 		}
 
 		return in;
+	}
+
+	static String getRoot() {
+		return new File("src").getAbsolutePath() + File.separator
+				+ PreprocessorTest.class.getPackage().getName().replace(".", File.separator) + File.separator
+				+ "resources" + File.separator + "preprocessor" + File.separator;
 	}
 
 	static String convertStreamToString(InputStream is) {

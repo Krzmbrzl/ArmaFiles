@@ -115,7 +115,7 @@ public class TextReader implements Closeable {
 	/**
 	 * Reads a String from the input. Note that it has to be properly opened and
 	 * closed by either " or ' and double-quotes are being used as quote-escaping.
-	 * The wrapping quotation marks are being consumed but not part of the returned
+	 * The wrapping quotation marks are being consumed but are not part of the returned
 	 * String.
 	 * 
 	 * @return The respective String (without the wrapping quotation marks) or

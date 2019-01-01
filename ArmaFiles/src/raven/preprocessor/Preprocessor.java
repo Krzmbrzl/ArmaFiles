@@ -2,6 +2,8 @@ package raven.preprocessor;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -54,6 +56,11 @@ public class Preprocessor {
 	 * preprocessing
 	 */
 	protected Collection<IProblemListener> problemListeners;
+	/**
+	 * The {@linkplain IPreprocessorPathResolver} that is used to resolve and handle
+	 * include-statements
+	 */
+	protected IPreprocessorPathResolver pathResolver;
 
 
 	/**
@@ -63,15 +70,21 @@ public class Preprocessor {
 	 *            How to deal with errors concerning misplaced whitespace
 	 * @param bugReproduction
 	 *            Whether or not to reproduce the bugs of the Arma-preprocessor
+	 * @param commentHandling
+	 *            Whether or not to remove comments (and which)
+	 * @param pathResolver
+	 *            The {@linkplain IPreprocessorPathResolver} that is used to resolve
+	 *            and handle include-statements
 	 * @see PreprocessorWhitespaceHandling
 	 * @see PreprocessorBugReproduction
 	 */
 	public Preprocessor(PreprocessorWhitespaceHandling wsHandling, PreprocessorBugReproduction bugReproduction,
-			PreprocessorCommentHandling commentHandling) {
+			PreprocessorCommentHandling commentHandling, IPreprocessorPathResolver pathResolver) {
 		macros = new HashMap<>();
 		this.wsHandling = wsHandling;
 		this.bugReproduction = bugReproduction;
 		this.commentHandling = commentHandling;
+		this.pathResolver = pathResolver;
 		problemListeners = new ArrayList<>();
 	}
 
@@ -81,7 +94,7 @@ public class Preprocessor {
 	 */
 	public Preprocessor() {
 		this(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.NONE,
-				PreprocessorCommentHandling.REMOVE);
+				PreprocessorCommentHandling.REMOVE, new DefaultPreprocessorPathResolver(Paths.get("/")));
 	}
 
 	/**
@@ -92,17 +105,24 @@ public class Preprocessor {
 	 * @param out
 	 *            The {@linkplain OutputStream} the preprocessed content should be
 	 *            written to
+	 * @param root
+	 *            The path describing the root path for this preprocessor (important
+	 *            for include-statements)
 	 * @throws IOException
 	 */
-	public void preprocess(TextReader in, OutputStream out) throws IOException {
+	public void preprocess(TextReader in, OutputStream out, String root) throws IOException {
 		reset();
+
+		pathResolver.setCurrentRoot(Paths.get(root));
 
 		this.in = in;
 		this.out = out;
 
 		// prevent thread from terminating because of some error during preprocessing
 		try {
-			doPreprocess();
+			if (!doPreprocess()) {
+				throw new PreprocessorException("Failed");
+			}
 		} catch (PreprocessorException e) {
 			// add error about preprocessing abortion
 			notifyProblem("Aborted preprocessing. Reason: " + e.getMessage(), Math.max(0, in.getPosition() - 1),
@@ -126,6 +146,7 @@ public class Preprocessor {
 
 		int c = readNext();
 		boolean beginOfInput = true;
+		boolean commentConsumedNL = false;
 
 		while (c >= 0) {
 			if (c == '"') {
@@ -138,10 +159,15 @@ public class Preprocessor {
 				if (str != null) {
 					writeToOut(("\"" + str + "\""));
 				}
+				
+				// reset
+				commentConsumedNL = false;
 			} else {
 				boolean newLine = c == '\n';
 
-				if (newLine | beginOfInput) {
+				if (newLine | beginOfInput | commentConsumedNL) {
+					// reset
+					commentConsumedNL = false;
 					while (c == '\n') {
 						writeToOut((char) c);
 
@@ -214,15 +240,27 @@ public class Preprocessor {
 						// block-comment
 						readNext();
 						skipBlockComment();
+						
+						// reset
+						commentConsumedNL = false;
 					} else if (in.peek() == '/') {
 						// line comment
 						readNext();
 						skipLineComment();
+						
+						// the trailing NL is being consumed by the line-comment
+						commentConsumedNL = true;
 					} else {
 						// it's not a comment
 						writeToOut((char) c);
+						
+						// reset
+						commentConsumedNL = false;
 					}
 				} else {
+					// reset
+					commentConsumedNL = false;
+					
 					if (Character.isWhitespace(c)) {
 						writeToOut((char) c);
 					} else {
@@ -678,12 +716,53 @@ public class Preprocessor {
 	 * 
 	 * @return Whether the inclusion has been performed successfully
 	 * @throws IOException
+	 * @throws PreprocessorException
 	 */
-	protected boolean includeBlock() throws IOException {
+	protected boolean includeBlock() throws IOException, PreprocessorException {
 		String path = in.readString();
 
-		System.err.println("Including \"" + path + "\"");
-		// TODO
+		if (pathResolver.exists(path)) {
+			if (pathResolver.isFile(path)) {
+				// include preprocessed content
+				TextReader includeIn = new TextReader(pathResolver.getStream(path));
+
+				// store current input-source + current root
+				TextReader normalIn = this.in;
+				Path root = pathResolver.getCurrentRoot();
+
+				// change input source + root
+				this.in = includeIn;
+				pathResolver.setCurrentRoot(pathResolver.resolve(path));
+
+				// preprocess the included file
+				try {
+					if (!doPreprocess()) {
+						throw new PreprocessorException("Failed at including \"" + path + "\"");
+					}
+				} catch (PreprocessorException e) {
+					// rethrow but blame it on the inclusion
+					throw new PreprocessorException("Failed at including \"" + path + "\" - " + e.getMessage());
+				}
+
+				// restore to default input source + root
+				this.in = normalIn;
+				pathResolver.setCurrentRoot(root);
+
+				return true;
+			} else {
+				// error about path not being a file
+				notifyProblem("The given path is not a file!", in.getPosition() - path.length() - 2, path.length() + 2,
+						true);
+			}
+		} else {
+			// error about unresolved path
+			String msg = "The path \"" + path + "\" could not be resolved";
+			if (path.contains("/")) {
+				msg += " - try replacing all '/' by '\\'";
+			}
+
+			notifyProblem(msg, in.getPosition() - path.length() - 2, path.length() + 2, true);
+		}
 
 		return false;
 	}
@@ -992,6 +1071,7 @@ public class Preprocessor {
 	 */
 	protected void notifyProblem(String message, int start, int length, boolean isError) {
 		// TODO: maybe transform index
+		// TODO: catch errors from included files and handle differently
 		for (IProblemListener currentListener : problemListeners) {
 			if (isError) {
 				currentListener.error(message, start, length);
