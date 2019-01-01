@@ -16,7 +16,6 @@ import java.util.Scanner;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import raven.misc.ConsoleProblemListener;
 import raven.misc.IProblemListener;
 import raven.misc.TextReader;
 import raven.preprocessor.DefaultPreprocessorPathResolver;
@@ -97,8 +96,6 @@ class PreprocessorTest {
 	static void setUp() throws Exception {
 		prep = new Preprocessor(PreprocessorWhitespaceHandling.TOLERANT, PreprocessorBugReproduction.ARMA,
 				PreprocessorCommentHandling.REMOVE, new DefaultPreprocessorPathResolver(Paths.get("/")));
-		
-		prep.addProblemListener(new ConsoleProblemListener());
 
 		guard = new ProblemGuard();
 		prep.addProblemListener(guard);
@@ -132,8 +129,11 @@ class PreprocessorTest {
 
 		for (int i = 1; i <= amountOfErrorTests; i++) {
 			String name = "ErrorTest" + (i < 10 ? "0" : "") + i + ".sqf";
+			String problemMessageFileName = name.replace(".sqf", "_ExpectedProblemMessages.sqf");
 
 			fileTest(name);
+
+			processProblemMessages(name, problemMessageFileName);
 		}
 	}
 
@@ -252,6 +252,54 @@ class PreprocessorTest {
 
 		assertEquals(expected, actual, name + " did not match the given result!");
 		System.out.println(" - passed");
+	}
+
+	/**
+	 * Processes the problem messages that are currently contained inside
+	 * {@link #guard} by printing the out in a pretty format alongside with the
+	 * offending text area and by comparing the obtained problem messages with the
+	 * expected ones.
+	 * 
+	 * @param fileName
+	 *            The name of the file that has been processed. It is used to get
+	 *            the original file content via {@link #getResourceStream(String)}
+	 * @param problemMessageFileName
+	 *            The name of the file that contains the expected error messages. It
+	 *            is used with {@link #getResourceStream(String)}
+	 */
+	protected void processProblemMessages(String fileName, String problemMessageFileName) {
+		String fileContent = convertStreamToString(getResourceStream(fileName));
+
+		// check problem-messages
+		StringBuilder problemMessages = new StringBuilder();
+		StringBuilder detailedProblemMessages = new StringBuilder();
+		for (Problem currentProblem : guard.problems) {
+			String line = (currentProblem.isError ? "[ERROR]:" : "[WARNING]:") + " \"" + currentProblem.message
+					+ "\" | start: " + currentProblem.start + " - length: " + currentProblem.length + "\n";
+
+			problemMessages.append(line);
+
+			// Add offending region to detailed message
+			detailedProblemMessages.append(line);
+			detailedProblemMessages.append("\t Offending region: -"
+					+ fileContent.substring(currentProblem.start, currentProblem.start + currentProblem.length)
+					+ "-\n");
+		}
+
+		// print out expected problem messages
+		System.out.println("-----------------------------Expected Problem Messages-----------------------------");
+		System.out.println(detailedProblemMessages.toString().trim());
+		System.out.println(
+				"-----------------------------------------------------------------------------------------------\n\n");
+
+
+		// compare problem messages
+		assertEquals(convertStreamToString(getResourceStream(problemMessageFileName)),
+				problemMessages.toString().trim());
+
+
+		// clear error messages
+		guard.reset();
 	}
 
 	static InputStream getResourceStream(String name) {

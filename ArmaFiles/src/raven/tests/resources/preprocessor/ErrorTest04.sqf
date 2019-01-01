@@ -1,1 +1,1 @@
-#define MACRO(One Argument)
+#define MACRO(One  Argument)

@@ -339,7 +339,7 @@ public class Preprocessor {
 			}
 
 			if (c != ')') {
-				notifyProblem("Missing closing ')'", in.getPosition() - 1, 1, true);
+				notifyProblem("Missing closing ')'", in.getPosition() - 2, 1, true);
 				// there's something wrong
 				if (c == -1) {
 					// If the macro isn't closed before the EOF Arma pretends as if the macro was
@@ -574,6 +574,7 @@ public class Preprocessor {
 					// add valid argument
 					arguments.add(argumentName);
 				} else {
+					int pos = in.getPosition();
 					amount = skipWhitespace(false);
 					if (in.peek() != ')') {
 						// this macro definition is invalid
@@ -593,7 +594,7 @@ public class Preprocessor {
 							// error about illegal WS inside argument name
 							notifyProblem(
 									"Illegal whitespace in argument name. This will result in an invalid macro definition!",
-									in.getPosition() - amount, amount, true);
+									pos, amount, true);
 						} else {
 							// apparently something else is broken
 							notifyProblem("Invalid macro-parameter definition", argStart,
@@ -722,7 +723,7 @@ public class Preprocessor {
 					// rethrow but blame it on the inclusion
 					throw new PreprocessorException("Failed at including \"" + path + "\" - " + e.getMessage());
 				}
-				if(!success) {
+				if (!success) {
 					throw new PreprocessorException("Failed at including \"" + path + "\"");
 				}
 
