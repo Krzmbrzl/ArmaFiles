@@ -50,11 +50,14 @@ public class ByteReader implements Closeable {
 	public int read() throws IOException {
 		readBytes++;
 
+		int c;
 		if (unreadStack.size() == 0) {
-			return source.read();
+			c = source.read();
 		} else {
-			return unreadStack.pop();
+			c = unreadStack.pop();
 		}
+
+		return c;
 	}
 
 	/**

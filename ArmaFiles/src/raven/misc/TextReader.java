@@ -40,7 +40,7 @@ public class TextReader implements Closeable {
 		} else {
 			c = unreadStack.pop();
 		}
-		
+
 		return c;
 	}
 
@@ -87,6 +87,10 @@ public class TextReader implements Closeable {
 			}
 		}
 
+		if (c == -1) {
+			unread(c);
+		}
+
 		return c == -1 && builder.length() == 0 ? null : builder.toString();
 	}
 
@@ -115,8 +119,8 @@ public class TextReader implements Closeable {
 	/**
 	 * Reads a String from the input. Note that it has to be properly opened and
 	 * closed by either " or ' and double-quotes are being used as quote-escaping.
-	 * The wrapping quotation marks are being consumed but are not part of the returned
-	 * String.
+	 * The wrapping quotation marks are being consumed but are not part of the
+	 * returned String.
 	 * 
 	 * @return The respective String (without the wrapping quotation marks) or
 	 *         <code>null</code> if the end of stream has been reached

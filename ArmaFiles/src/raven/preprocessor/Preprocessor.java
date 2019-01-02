@@ -7,8 +7,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import raven.misc.IProblemListener;
 import raven.misc.TextReader;
@@ -61,6 +63,11 @@ public class Preprocessor {
 	 * include-statements
 	 */
 	protected IPreprocessorPathResolver pathResolver;
+	/**
+	 * A {@linkplain Set} of file-paths that have been included in the current
+	 * include-cycle
+	 */
+	protected Set<Path> includedPaths;
 
 
 	/**
@@ -85,7 +92,9 @@ public class Preprocessor {
 		this.bugReproduction = bugReproduction;
 		this.commentHandling = commentHandling;
 		this.pathResolver = pathResolver;
+
 		problemListeners = new ArrayList<>();
+		includedPaths = new HashSet<>();
 	}
 
 	/**
@@ -170,7 +179,7 @@ public class Preprocessor {
 
 					in.unread(c);
 
-					skipWhitespace(false);
+					skipHorizontalWhitespace(false);
 
 					c = readNext();
 
@@ -179,8 +188,8 @@ public class Preprocessor {
 
 						if (Character.isWhitespace(in.peek())) {
 							int start = in.getPosition();
-							int length = skipWhitespace(false);
-							notifyProblem("Invalid whitespace characters", start, length, true);
+							int length = skipHorizontalWhitespace(false);
+							notifyProblem("Invalid whitespace characters!", start, length, true);
 
 							if (wsHandling == PreprocessorWhitespaceHandling.STRICT) {
 								// The preprocessor was instructed to error out in this case
@@ -190,11 +199,11 @@ public class Preprocessor {
 
 						String command = in.readWord();
 
-						skipWhitespace(false);
+						int amount = skipHorizontalWhitespace(false);
 
 						switch (command) {
 						case "include":
-							ok = includeBlock();
+							ok = includeBlock(amount);
 							break;
 						case "define":
 							ok = defineBlock();
@@ -211,15 +220,15 @@ public class Preprocessor {
 						case "endif":
 						case "else":
 							// error about orphaned #else or #endif
-							notifyProblem("Orphaned #" + command, preprocecessorStartIndex,
+							notifyProblem("Orphaned #" + command + "!", preprocecessorStartIndex,
 									in.getPosition() - preprocecessorStartIndex, true);
 
 							ok = false;
 							break;
 						default:
 							// error about unrecognized preprocessor command
-							notifyProblem("Unknown preprocessor command \"#" + command + "\"", preprocecessorStartIndex,
-									in.getPosition() - preprocecessorStartIndex, true);
+							notifyProblem("Unknown preprocessor command \"#" + command + "\"!",
+									preprocecessorStartIndex, in.getPosition() - preprocecessorStartIndex, true);
 
 							ok = false;
 							break;
@@ -339,7 +348,7 @@ public class Preprocessor {
 			}
 
 			if (c != ')') {
-				notifyProblem("Missing closing ')'", in.getPosition() - 2, 1, true);
+				notifyProblem("Missing closing ')'!", in.getPosition() - 2, 1, true);
 				// there's something wrong
 				if (c == -1) {
 					// If the macro isn't closed before the EOF Arma pretends as if the macro was
@@ -559,7 +568,7 @@ public class Preprocessor {
 			in.expect('(');
 
 			// skip WS as leading WS gets removed by Arma
-			int amount = skipWhitespace(false);
+			int amount = skipHorizontalWhitespace(false);
 
 			if (amount != 0) {
 				// warn about illegal WS
@@ -575,7 +584,7 @@ public class Preprocessor {
 					arguments.add(argumentName);
 				} else {
 					int pos = in.getPosition();
-					amount = skipWhitespace(false);
+					amount = skipHorizontalWhitespace(false);
 					if (in.peek() != ')') {
 						// this macro definition is invalid
 						valid = false;
@@ -597,7 +606,7 @@ public class Preprocessor {
 									pos, amount, true);
 						} else {
 							// apparently something else is broken
-							notifyProblem("Invalid macro-parameter definition", argStart,
+							notifyProblem("Invalid macro-parameter definition!", argStart,
 									in.getPosition() - argStart + (c == ')' ? 1 : 0), true);
 						}
 					} else {
@@ -618,7 +627,7 @@ public class Preprocessor {
 
 					if (argumentName != null && argumentName.isEmpty()) {
 						if (Character.isWhitespace(in.peek())) {
-							amount = skipWhitespace(false);
+							amount = skipHorizontalWhitespace(false);
 
 							// error about illegal WS inside argument name
 							notifyProblem(
@@ -635,7 +644,7 @@ public class Preprocessor {
 			}
 
 			// skip WS as this gets trimmed away from the macro argument by Arma
-			amount = skipWhitespace(false);
+			amount = skipHorizontalWhitespace(false);
 
 			if (amount != 0) {
 				// warn about illegal WS
@@ -646,7 +655,7 @@ public class Preprocessor {
 				in.expect(')');
 			} else {
 				// error about unclosed macro definition
-				notifyProblem("Missing closing ')'", in.getPosition() - 1, 1, true);
+				notifyProblem("Missing closing ')'!", in.getPosition() - 1, 1, true);
 			}
 		}
 
@@ -693,55 +702,88 @@ public class Preprocessor {
 	}
 
 	/**
-	 * Handles an include-statement after the #inlude has already been consumed
+	 * Handles an include-statement after the #include has already been consumed
+	 * 
+	 * @param amountOfSkippedWS
+	 *            The amount of WS characters that have been consumed that came
+	 *            after the {@link #includeBlock(int)}instruction
 	 * 
 	 * @return Whether the inclusion has been performed successfully
 	 * @throws IOException
 	 * @throws PreprocessorException
 	 */
-	protected boolean includeBlock() throws IOException, PreprocessorException {
+	protected boolean includeBlock(int amountOfSkippedWS) throws IOException, PreprocessorException {
+		if (!(in.peek() == '"' || in.peek() == '\'')) {
+			// there is no String as an argument
+			int pos = in.getPosition();
+			String argument = in.readLine();
+
+			if (argument == null || argument.isEmpty() || argument.equals("\n")) {
+				notifyProblem("Include-statement missing argument (String)!",
+						pos - amountOfSkippedWS - "#include".length(), "#include".length(), true);
+			} else {
+				notifyProblem("Argument for #include has to be a String!", pos, argument.length(), true);
+			}
+
+			return false;
+		}
+
 		String path = in.readString();
 
 		if (pathResolver.exists(path)) {
 			if (pathResolver.isFile(path)) {
-				// include preprocessed content
-				TextReader includeIn = new TextReader(pathResolver.getStream(path));
+				Path currentIncluded = pathResolver.resolve(path);
 
-				// store current input-source + current root
-				TextReader normalIn = this.in;
-				Path root = pathResolver.getCurrentRoot();
+				if (includedPaths.contains(currentIncluded)) {
+					// cycle in hierarchy detected
+					notifyProblem("Cycle in hierarchy (" + includedPaths.size() + " involved files)!",
+							in.getPosition() - path.length() - 2, path.length() + 2, true);
+				} else {
+					includedPaths.add(currentIncluded);
 
-				// change input source + root
-				this.in = includeIn;
-				pathResolver.setCurrentRoot(pathResolver.resolve(path).getParent());
+					// include preprocessed content
+					TextReader includeIn = new TextReader(pathResolver.getStream(path));
 
-				// preprocess the included file
-				boolean success;
-				try {
-					success = doPreprocess();
-				} catch (PreprocessorException e) {
-					// rethrow but blame it on the inclusion
-					throw new PreprocessorException("Failed at including \"" + path + "\" - " + e.getMessage());
+					// store current input-source + current root
+					TextReader normalIn = this.in;
+					Path root = pathResolver.getCurrentRoot();
+
+					// change input source + root
+					this.in = includeIn;
+					pathResolver.setCurrentRoot(currentIncluded.getParent());
+
+					// preprocess the included file
+					boolean success;
+					try {
+						success = doPreprocess();
+					} catch (PreprocessorException e) {
+						// rethrow but blame it on the inclusion
+						throw new PreprocessorException("Failed at including \"" + path + "\" - " + e.getMessage());
+					}
+					if (!success) {
+						throw new PreprocessorException("Failed at including \"" + path + "\"");
+					}
+
+					// restore to default input source + root
+					this.in = normalIn;
+					pathResolver.setCurrentRoot(root);
+
+					includedPaths.remove(currentIncluded);
+
+					return true;
 				}
-				if (!success) {
-					throw new PreprocessorException("Failed at including \"" + path + "\"");
-				}
-
-				// restore to default input source + root
-				this.in = normalIn;
-				pathResolver.setCurrentRoot(root);
-
-				return true;
 			} else {
 				// error about path not being a file
-				notifyProblem("The given path is not a file!", in.getPosition() - path.length() - 2, path.length() + 2,
-						true);
+				notifyProblem("The path \"" + path + "\" does not lead to a file!",
+						in.getPosition() - path.length() - 2, path.length() + 2, true);
 			}
 		} else {
 			// error about unresolved path
-			String msg = "The path \"" + path + "\" could not be resolved";
+			String msg;
 			if (path.contains("/")) {
-				msg += " - try replacing all '/' by '\\'";
+				msg = "Illegal file separator '/' - backslashes have to be used for that!";
+			} else {
+				msg = "The path \"" + path + "\" could not be resolved!";
 			}
 
 			notifyProblem(msg, in.getPosition() - path.length() - 2, path.length() + 2, true);
@@ -769,22 +811,21 @@ public class Preprocessor {
 	}
 
 	/**
-	 * Skips all whitespace
+	 * Skips all horizontal whitespace
 	 * 
 	 * @param writeAll
 	 *            Indicates whether all WS should get written to {@link #out}
-	 *            instead of NL only
 	 * @return the amount of skipped WS
 	 * 
 	 * @throws IOException
 	 */
-	protected int skipWhitespace(boolean writeAll) throws IOException {
+	protected int skipHorizontalWhitespace(boolean writeAll) throws IOException {
 		int c = readNext();
 
 		int amount = 0;
 
-		while (Character.isWhitespace(c)) {
-			if (writeAll || c == '\n') {
+		while (Character.isSpaceChar(c) || c == '\t') {
+			if (writeAll) {
 				writeToOut((char) c);
 			}
 

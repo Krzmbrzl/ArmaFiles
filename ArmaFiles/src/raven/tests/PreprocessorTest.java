@@ -1,6 +1,7 @@
 package raven.tests;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.ByteArrayInputStream;
@@ -224,6 +225,43 @@ class PreprocessorTest {
 
 		System.out.println(" - passed");
 	}
+	
+	@Test
+	public void includeErrorTest() throws IOException {
+		guard.allowProblems(true);
+		guard.reset();
+		prep.setCommentHandling(PreprocessorCommentHandling.KEEP);
+
+		System.out.println("Testing invalid include statements\n");
+		int amountOfTests = 6;
+
+		String root = getRoot();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		for (int i = 1; i <= amountOfTests; i++) {
+			String number = (i < 10 ? "0" : "") + String.valueOf(i);
+			String testName = "IncludeErrorTest" + number + ".sqf";
+			String resultName = "IncludeErrorResult.sqf";
+			String problemMessageFileName = testName.replace(".sqf", "_ExpectedProblemMessages.sqf");
+
+			System.out.print("Testing " + testName);
+
+			prep.preprocess(new TextReader(getResourceStream(testName)), out, root);
+
+			String expected = convertStreamToString(getResourceStream(resultName));
+			String actual = out.toString();
+
+			assertEquals(expected, actual);
+
+			out.reset();
+
+			System.out.println(" - passed");
+			
+			processProblemMessages(testName, problemMessageFileName);
+		}
+		
+		out.close();
+	}
 
 	/**
 	 * Performs the actual testing on the file with the given name. The name is
@@ -281,9 +319,15 @@ class PreprocessorTest {
 
 			// Add offending region to detailed message
 			detailedProblemMessages.append(line);
+			if(currentProblem.start + currentProblem.length <= fileContent.length()) {
 			detailedProblemMessages.append("\t Offending region: -"
-					+ fileContent.substring(currentProblem.start, currentProblem.start + currentProblem.length)
+					+ fileContent.substring(currentProblem.start, currentProblem.start + currentProblem.length).replace("\n", "\\n")
 					+ "-\n");
+			} else {
+				detailedProblemMessages.append("\t [Index out of Bounds]\n");
+				System.out.println(detailedProblemMessages.toString());
+				fail("Error index is out of bounds!");
+			}
 		}
 
 		// print out expected problem messages
@@ -295,7 +339,7 @@ class PreprocessorTest {
 
 		// compare problem messages
 		assertEquals(convertStreamToString(getResourceStream(problemMessageFileName)),
-				problemMessages.toString().trim());
+				problemMessages.toString().trim(), "Error messages differed");
 
 
 		// clear error messages

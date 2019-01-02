@@ -1,3 +1,3 @@
-#include "IncludeResource03.sqf"
+#include 'IncludeResource03.sqf'
 
 MY_MACRO(SQDev)

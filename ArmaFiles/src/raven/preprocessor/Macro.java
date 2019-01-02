@@ -131,7 +131,7 @@ public class Macro {
 				} else {
 					// if the argument count doesn't match up -> return an empty String + report
 					// error
-					errorMessage = "Expected " + argumentNames.size() + " arguments but got " + arguments.size();
+					errorMessage = "Expected " + argumentNames.size() + " arguments but got " + arguments.size() + "!";
 					return "";
 				}
 			}
